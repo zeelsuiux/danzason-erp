@@ -60,18 +60,26 @@ const communicationLogSchema = new mongoose.Schema(
       enum: ['phone', 'whatsapp', 'email', 'meeting'],
       default: 'phone',
     },
+    client_answer: {
+      type: String,
+      default: '',
+    },
     summary: {
       type: String,
-      required: true,
+      default: '',
     },
     outcome: {
       type: String,
-      enum: ['interested', 'follow_up_needed', 'confirmed', 'declined', 'no_response'],
+      enum: ['interested', 'follow_up_needed', 'call_back_later', 'stock_available', 'confirmed', 'declined', 'no_response', 'not_interested'],
       default: 'follow_up_needed',
     },
     logged_by: {
       type: String,
       default: 'Sales Executive',
+    },
+    next_follow_up_date: {
+      type: Date,
+      default: null,
     },
   },
   { _id: true }
@@ -157,7 +165,7 @@ const repeatOrderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['due_soon', 'overdue', 'contacted', 'confirmed', 'invoiced', 'skipped'],
+      enum: ['due_soon', 'overdue', 'contacted', 'confirmed', 'invoiced', 'converted', 'skipped'],
       default: 'due_soon',
     },
     priority: {

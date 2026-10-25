@@ -25,6 +25,7 @@ import InvoiceEdit from './pages/sales/InvoiceEdit';
 import SalesReturns from './pages/sales/SalesReturns';
 import UpsellCrossSellManagement from './pages/sales/UpsellCrossSellManagement';
 import RepeatOrderManagement from './pages/sales/RepeatOrderManagement';
+import ComplaintManagement from './pages/customerService/ComplaintManagement';
 import ProductsList from './pages/products/ProductsList';
 import ProductStockLedger from './pages/products/ProductStockLedger';
 import RawMaterialCatalog from './pages/rawMaterials/RawMaterialCatalog';
@@ -116,6 +117,9 @@ export default function App() {
           <Route path="sales/repeat-orders" element={<RepeatOrderManagement />} />
           <Route path="sales/repeat" element={<RepeatOrderManagement />} />
           <Route path="repeat-orders" element={<RepeatOrderManagement />} />
+          <Route path="sales/complaints" element={<ComplaintManagement />} />
+          <Route path="customer-service" element={<ComplaintManagement />} />
+          <Route path="complaints" element={<ComplaintManagement />} />
 
           {/* Finance & Accounts Management */}
           <Route path="finance" element={<FinanceModule />} />

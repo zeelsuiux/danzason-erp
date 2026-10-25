@@ -775,7 +775,7 @@ exports.getSalesInvoices = async (req, res) => {
 
 exports.createSalesInvoiceFromOrder = async (req, res) => {
   try {
-    const { so_id, due_date } = req.body;
+    const { so_id, due_date, approx_repeat_date } = req.body;
     const so = await SalesOrder.findById(so_id)
       .populate('customer_id')
       .populate('warehouse_id');
@@ -826,6 +826,7 @@ exports.createSalesInvoiceFromOrder = async (req, res) => {
       customer_id: so.customer_id._id,
       invoice_date: new Date(),
       due_date: dueDateCalculated,
+      approx_repeat_date: approx_repeat_date ? new Date(approx_repeat_date) : null,
       items: invoiceItems,
       subtotal: so.subtotal,
       discount_total: so.discount_total,
@@ -841,6 +842,48 @@ exports.createSalesInvoiceFromOrder = async (req, res) => {
     });
 
     await invoice.save();
+
+    // Auto-create Repeat Requirement if approx_repeat_date is specified
+    if (approx_repeat_date) {
+      try {
+        const RepeatOrder = require('../models/RepeatOrder');
+        const count = await RepeatOrder.countDocuments();
+        const year = new Date().getFullYear();
+        const repNumber = `RO-${year}-${String(count + 1).padStart(4, '0')}`;
+        await RepeatOrder.create({
+          repeat_order_number: repNumber,
+          original_order_id: invoice._id,
+          original_order_number: invoice.invoice_number,
+          customer_id: so.customer_id._id,
+          customer_name: so.customer_id.customer_name || 'Valued Customer',
+          company_name: so.customer_id.company_name || so.customer_id.customer_name || '',
+          phone: so.customer_id.mobile || so.customer_id.phone || '',
+          email: so.customer_id.email || '',
+          expected_reorder_date: new Date(approx_repeat_date),
+          last_order_date: invoice.invoice_date || new Date(),
+          status: 'due_soon',
+          priority: so.grand_total > 50000 ? 'high' : 'medium',
+          total_quantity: invoiceItems.reduce((acc, it) => acc + (it.quantity || 0), 0),
+          subtotal_amount: so.subtotal,
+          final_amount: so.grand_total,
+          items: invoiceItems.map((it) => ({
+            product_id: it.product_id,
+            product_name: it.product_name,
+            sku: it.hsn_code || '',
+            color: 'Standard',
+            sizes: { S: 0, M: 0, L: 0, XL: 0, '2XL': 0 },
+            quantity: it.quantity,
+            uom: it.uom || 'PCS',
+            unit_price: it.unit_price,
+            total_price: it.total_amount,
+          })),
+          warehouse_id: so.warehouse_id?._id || null,
+          notes: so.notes || `Scheduled repeat from Invoice ${invoice.invoice_number}`,
+        });
+      } catch (errRep) {
+        console.error('Failed to auto-schedule RepeatOrder from Quotation conversion:', errRep);
+      }
+    }
 
     // Inventory Posting: Deduct physical stock at finalized invoice generation stage
     for (const item of invoiceItems) {
@@ -890,6 +933,7 @@ exports.createDirectSalesInvoice = async (req, res) => {
       customer_id,
       invoice_date,
       due_date,
+      approx_repeat_date,
       place_of_supply,
       warehouse_id,
       shipping_charges = 0,
@@ -1044,6 +1088,7 @@ exports.createDirectSalesInvoice = async (req, res) => {
       payment_status: balance === 0 ? 'paid' : paid > 0 ? 'partially_paid' : 'unpaid',
       status: status === 'draft' ? 'draft' : 'issued',
       place_of_supply: place_of_supply || customer.billing_address?.state || 'Gujarat',
+      approx_repeat_date: approx_repeat_date ? new Date(approx_repeat_date) : null,
       notes,
     });
 
@@ -1058,6 +1103,48 @@ exports.createDirectSalesInvoice = async (req, res) => {
     }
 
     await invoice.save();
+
+    // Auto-create Repeat Requirement if approx_repeat_date is specified
+    if (approx_repeat_date) {
+      try {
+        const RepeatOrder = require('../models/RepeatOrder');
+        const count = await RepeatOrder.countDocuments();
+        const year = new Date().getFullYear();
+        const repNumber = `RO-${year}-${String(count + 1).padStart(4, '0')}`;
+        await RepeatOrder.create({
+          repeat_order_number: repNumber,
+          original_order_id: invoice._id,
+          original_order_number: invoice.invoice_number,
+          customer_id: customer._id,
+          customer_name: customer.customer_name || 'Valued Customer',
+          company_name: customer.company_name || customer.customer_name || '',
+          phone: customer.mobile || customer.phone || '',
+          email: customer.email || '',
+          expected_reorder_date: new Date(approx_repeat_date),
+          last_order_date: invoice.invoice_date || new Date(),
+          status: 'due_soon',
+          priority: grand_total > 50000 ? 'high' : 'medium',
+          total_quantity: processedItems.reduce((acc, it) => acc + (it.quantity || 0), 0),
+          subtotal_amount: subtotal,
+          final_amount: grand_total,
+          items: processedItems.map((it) => ({
+            product_id: it.product_id,
+            product_name: it.product_name,
+            sku: it.sku || '',
+            color: it.color || 'Standard',
+            sizes: it.sizes || { S: 0, M: 0, L: 0, XL: 0, '2XL': 0 },
+            quantity: it.quantity,
+            uom: it.uom || 'PCS',
+            unit_price: it.unit_price,
+            total_price: it.total_amount || (it.quantity * it.unit_price),
+          })),
+          warehouse_id: invoice.warehouse_id || null,
+          notes: notes || `Scheduled repeat requirement from Invoice ${invoice.invoice_number}`,
+        });
+      } catch (errRep) {
+        console.error('Failed to auto-schedule RepeatOrder from Direct Invoice:', errRep);
+      }
+    }
 
     // Inventory Posting: If issued, deduct stock and update customer pending balance
     if (invoice.status === 'issued') {

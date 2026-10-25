@@ -31,7 +31,7 @@ export const repeatOrderService = {
   // Actions
   generateFromPastOrder: (data) => api.post('/sales/repeat-orders/generate-from-order', data),
   logContact: (id, data) => api.post(`/sales/repeat-orders/${id}/log-contact`, data),
-  convertToInvoice: (id) => api.post(`/sales/repeat-orders/${id}/convert-to-invoice`),
+  convertToInvoice: (id, data = {}) => api.post(`/sales/repeat-orders/${id}/convert-to-invoice`, data),
 
   // Reference Masters
   getCustomers: (params) => api.get('/sales/customers', { params }),

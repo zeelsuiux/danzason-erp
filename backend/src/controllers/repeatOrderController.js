@@ -164,12 +164,67 @@ async function ensureSampleRepeatOrders() {
 }
 
 /**
+ * Automatically sync any SalesInvoice with approx_repeat_date into RepeatOrder collection
+ */
+async function syncInvoicesWithRepeatDate() {
+  try {
+    const invoices = await SalesInvoice.find({
+      approx_repeat_date: { $ne: null, $exists: true },
+      is_deleted: false,
+    }).populate('customer_id');
+
+    for (const inv of invoices) {
+      if (!inv.customer_id) continue;
+      const exists = await RepeatOrder.findOne({ original_order_id: inv._id, is_deleted: false });
+      if (!exists) {
+        const count = await RepeatOrder.countDocuments();
+        const year = new Date().getFullYear();
+        const repNumber = `RO-${year}-${String(count + 1).padStart(4, '0')}`;
+        await RepeatOrder.create({
+          repeat_order_number: repNumber,
+          original_order_id: inv._id,
+          original_order_number: inv.invoice_number,
+          customer_id: inv.customer_id._id,
+          customer_name: inv.customer_id.customer_name || 'Client',
+          company_name: inv.customer_id.company_name || inv.customer_id.customer_name || '',
+          phone: inv.customer_id.mobile || inv.customer_id.phone || '',
+          email: inv.customer_id.email || '',
+          expected_reorder_date: inv.approx_repeat_date,
+          last_order_date: inv.invoice_date || inv.createdAt,
+          status: 'due_soon',
+          priority: (inv.grand_total || 0) > 50000 ? 'high' : 'medium',
+          total_quantity: (inv.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0),
+          subtotal_amount: inv.subtotal || inv.grand_total,
+          final_amount: inv.grand_total,
+          items: (inv.items || []).map((it) => ({
+            product_id: it.product_id,
+            product_name: it.product_name,
+            sku: it.hsn_code || '',
+            color: 'Standard',
+            sizes: { S: 0, M: 0, L: 0, XL: 0, '2XL': 0 },
+            quantity: it.quantity,
+            uom: it.uom || 'PCS',
+            unit_price: it.unit_price,
+            total_price: it.total_amount,
+          })),
+          warehouse_id: inv.warehouse_id || null,
+          notes: `Auto-generated from Invoice ${inv.invoice_number} (Approx Repeat Date)`,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error syncing invoices with repeat date:', err);
+  }
+}
+
+/**
  * GET /api/v1/sales/repeat-orders/analytics
  * Executive KPI cards and pipeline insights
  */
 exports.getAnalytics = async (req, res) => {
   try {
     await ensureSampleRepeatOrders();
+    await syncInvoicesWithRepeatDate();
 
     const allOrders = await RepeatOrder.find({ is_deleted: false });
 
@@ -179,17 +234,27 @@ exports.getAnalytics = async (req, res) => {
     let confirmedCount = 0;
     let invoicedCount = 0;
     let totalItemsQuantity = 0;
+    let due7DaysCount = 0;
 
-    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     allOrders.forEach((ro) => {
       totalRepeatRevenue += Number(ro.final_amount || 0);
       totalItemsQuantity += Number(ro.total_quantity || 0);
 
+      const exp = ro.expected_reorder_date ? new Date(ro.expected_reorder_date) : null;
+      if (exp && !['converted', 'invoiced', 'skipped'].includes(ro.status)) {
+        const days = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (days <= 7) {
+          due7DaysCount++;
+        }
+      }
+
       if (ro.status === 'due_soon') dueSoonCount++;
       else if (ro.status === 'overdue') overdueCount++;
       else if (ro.status === 'confirmed') confirmedCount++;
-      else if (ro.status === 'invoiced') invoicedCount++;
+      else if (ro.status === 'invoiced' || ro.status === 'converted') invoicedCount++;
     });
 
     const activePipelineCount = dueSoonCount + overdueCount + confirmedCount;
@@ -202,6 +267,7 @@ exports.getAnalytics = async (req, res) => {
         repeat_order_rate: repeatOrderRate,
         total_repeat_orders: allOrders.length,
         due_soon_count: dueSoonCount,
+        due_7_days_count: due7DaysCount,
         overdue_at_risk_count: overdueCount,
         confirmed_count: confirmedCount,
         invoiced_count: invoicedCount,
@@ -222,14 +288,16 @@ exports.getAnalytics = async (req, res) => {
 exports.getRepeatOrders = async (req, res) => {
   try {
     await ensureSampleRepeatOrders();
+    await syncInvoicesWithRepeatDate();
 
     const {
       status,
       priority,
       customer_id,
+      tab,
       search,
       page = 1,
-      limit = 20,
+      limit = 50,
       sort_by = 'expected_reorder_date',
       sort_order = 'asc',
     } = req.query;
@@ -248,6 +316,22 @@ exports.getRepeatOrders = async (req, res) => {
       query.customer_id = customer_id;
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    if (tab === 'due_7_days') {
+      query.expected_reorder_date = { $lte: sevenDaysFromNow };
+      query.status = { $nin: ['converted', 'invoiced', 'skipped'] };
+    } else if (tab === 'upcoming') {
+      query.expected_reorder_date = { $gt: sevenDaysFromNow };
+      query.status = { $nin: ['converted', 'invoiced', 'skipped'] };
+    } else if (tab === 'contacted') {
+      query.status = 'contacted';
+    } else if (tab === 'converted') {
+      query.status = { $in: ['converted', 'invoiced'] };
+    }
+
     if (search && search.trim()) {
       const term = search.trim();
       query.$or = [
@@ -255,6 +339,7 @@ exports.getRepeatOrders = async (req, res) => {
         { customer_name: { $regex: term, $options: 'i' } },
         { company_name: { $regex: term, $options: 'i' } },
         { phone: { $regex: term, $options: 'i' } },
+        { original_order_number: { $regex: term, $options: 'i' } },
         { 'items.product_name': { $regex: term, $options: 'i' } },
       ];
     }
@@ -268,17 +353,43 @@ exports.getRepeatOrders = async (req, res) => {
 
     const [orders, total] = await Promise.all([
       RepeatOrder.find(query)
-        .populate('customer_id', 'customer_name company_name mobile email customer_type')
+        .populate('customer_id', 'customer_name company_name mobile phone email customer_type billing_address shipping_address')
         .populate('warehouse_id', 'warehouse_name warehouse_code')
         .sort(sortOption)
         .skip(skip)
-        .limit(limitNum),
+        .limit(limitNum)
+        .lean(),
       RepeatOrder.countDocuments(query),
     ]);
 
+    const enrichedOrders = orders.map((ro) => {
+      const exp = ro.expected_reorder_date ? new Date(ro.expected_reorder_date) : null;
+      let daysRemaining = null;
+      let isRequirementDue = false;
+      let isOverdue = false;
+
+      if (exp) {
+        const diffMs = exp.getTime() - today.getTime();
+        daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (daysRemaining <= 7 && !['converted', 'invoiced', 'skipped'].includes(ro.status)) {
+          isRequirementDue = true;
+        }
+        if (daysRemaining < 0 && !['converted', 'invoiced', 'skipped'].includes(ro.status)) {
+          isOverdue = true;
+        }
+      }
+
+      return {
+        ...ro,
+        days_remaining: daysRemaining,
+        is_requirement_due: isRequirementDue,
+        is_overdue: isOverdue,
+      };
+    });
+
     res.json({
       success: true,
-      data: orders,
+      data: enrichedOrders,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -560,23 +671,42 @@ exports.logContact = async (req, res) => {
   try {
     const order = await RepeatOrder.findOne({ _id: req.params.id, is_deleted: false });
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Repeat order not found' });
+      return res.status(404).json({ success: false, message: 'Repeat order requirement not found' });
     }
 
-    const { channel = 'phone', outcome = 'interested', summary = '', logged_by = 'Sales Executive' } = req.body;
+    const {
+      channel = 'phone',
+      outcome = 'interested',
+      client_answer = '',
+      summary = '',
+      logged_by = 'Sales Executive',
+      next_follow_up_date = null,
+      postponed_repeat_date = null,
+    } = req.body;
+
+    const answer = client_answer || summary || 'Call connected with client';
 
     order.communications_log.push({
       date: new Date(),
       channel,
       outcome,
-      summary,
+      client_answer: answer,
+      summary: answer,
       logged_by,
+      next_follow_up_date: next_follow_up_date ? new Date(next_follow_up_date) : null,
     });
+
+    // If client requested a new/postponed repeat date, update expected_reorder_date
+    if (postponed_repeat_date) {
+      order.expected_reorder_date = new Date(postponed_repeat_date);
+    }
 
     if (outcome === 'confirmed') {
       order.status = 'confirmed';
       order.actual_reorder_date = new Date();
-    } else if (order.status === 'due_soon' || order.status === 'overdue') {
+    } else if (outcome === 'not_interested' || outcome === 'declined') {
+      order.status = 'skipped';
+    } else {
       order.status = 'contacted';
     }
 
@@ -584,7 +714,7 @@ exports.logContact = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Communication logged successfully',
+      message: 'Client response and call outcome successfully logged',
       data: order,
     });
   } catch (error) {
@@ -595,7 +725,7 @@ exports.logContact = async (req, res) => {
 
 /**
  * POST /api/v1/sales/repeat-orders/:id/convert-to-invoice
- * Convert confirmed repeat order into active Sales Invoice
+ * Convert repeat requirement into real Sales Order / Invoice with fully editable line items & quantities
  */
 exports.convertToInvoice = async (req, res) => {
   try {
@@ -604,57 +734,142 @@ exports.convertToInvoice = async (req, res) => {
       .populate('warehouse_id');
 
     if (!order) {
-      return res.status(404).json({ success: false, message: 'Repeat order not found' });
+      return res.status(404).json({ success: false, message: 'Repeat order requirement not found' });
     }
 
+    const {
+      items: submittedItems,
+      warehouse_id: submittedWarehouseId,
+      notes: submittedNotes,
+      next_approx_repeat_date = null,
+      shipping_charges = 0,
+    } = req.body;
+
+    const itemsToProcess = Array.isArray(submittedItems) && submittedItems.length > 0 ? submittedItems : order.items;
+
     const countInvoices = await SalesInvoice.countDocuments();
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(countInvoices + 1).padStart(4, '0')}`;
+    const year = new Date().getFullYear();
+    const invoiceNumber = `INV-${year}-${String(countInvoices + 1).padStart(5, '0')}`;
 
-    const invoiceItems = order.items.map((it) => ({
-      product_id: it.product_id,
-      product_name: it.product_name,
-      hsn_code: it.sku || '6109',
-      quantity: it.quantity,
-      uom: it.uom || 'PCS',
-      unit_price: it.unit_price,
-      discount_percentage: order.loyalty_discount_percent,
-      discount_amount: Math.round(it.total_price * (order.loyalty_discount_percent / 100)),
-      taxable_amount: it.total_price - Math.round(it.total_price * (order.loyalty_discount_percent / 100)),
-      gst_rate: 5, // 5% apparel GST
-      cgst_amount: Math.round((it.total_price * 0.025)),
-      sgst_amount: Math.round((it.total_price * 0.025)),
-      igst_amount: 0,
-      total_amount: Math.round(it.total_price * 1.05),
-    }));
+    let subtotal = 0;
+    let tax_total = 0;
+    let discount_total = 0;
 
-    const totalTaxable = invoiceItems.reduce((acc, it) => acc + it.taxable_amount, 0);
-    const totalGst = invoiceItems.reduce((acc, it) => acc + it.cgst_amount + it.sgst_amount, 0);
-    const grandTotal = totalTaxable + totalGst;
+    const invoiceItems = itemsToProcess.map((it) => {
+      const q = Math.max(1, Number(it.quantity || 1));
+      const p = Math.max(0, Number(it.unit_price || 0));
+      const gross = q * p;
+      const discAmt = Number(it.discount_amount || 0);
+      const taxable = Math.max(0, gross - discAmt);
+      const gstRate = Number(it.gst_rate || 5);
+      const halfTax = Number(((taxable * (gstRate / 100)) / 2).toFixed(2));
+      const fullTax = Number((taxable * (gstRate / 100)).toFixed(2));
+      const lineTotal = Math.round(taxable + fullTax);
+
+      subtotal += taxable;
+      discount_total += discAmt;
+      tax_total += fullTax;
+
+      return {
+        product_id: it.product_id || null,
+        product_name: it.product_name,
+        hsn_code: it.sku || it.hsn_code || '6109',
+        quantity: q,
+        uom: it.uom || 'PCS',
+        unit_price: p,
+        discount_percentage: Number(it.discount_percentage || 0),
+        discount_amount: discAmt,
+        taxable_amount: taxable,
+        gst_rate: gstRate,
+        cgst_amount: halfTax,
+        sgst_amount: halfTax,
+        igst_amount: 0,
+        total_amount: lineTotal,
+      };
+    });
+
+    const grand_total = Math.round(subtotal + tax_total + Number(shipping_charges || 0));
 
     const newInvoice = await SalesInvoice.create({
       invoice_number: invoiceNumber,
       customer_id: order.customer_id._id,
-      warehouse_id: order.warehouse_id?._id || null,
+      warehouse_id: submittedWarehouseId || order.warehouse_id?._id || null,
       invoice_date: new Date(),
       due_date: new Date(Date.now() + 30 * 86400000), // 30 days credit
       items: invoiceItems,
-      subtotal: totalTaxable,
-      tax_amount: totalGst,
-      total_amount: grandTotal,
+      subtotal,
+      discount_total,
+      tax_total,
+      shipping_charges: Number(shipping_charges || 0),
+      grand_total,
       paid_amount: 0,
-      balance_amount: grandTotal,
-      payment_status: 'UNPAID',
-      notes: `Repeat Order Conversion from ${order.repeat_order_number}`,
+      balance_amount: grand_total,
+      payment_status: 'unpaid',
+      status: 'issued',
+      approx_repeat_date: next_approx_repeat_date ? new Date(next_approx_repeat_date) : null,
+      notes: submittedNotes || `Directly converted from Repeat Requirement ${order.repeat_order_number}`,
     });
 
-    order.status = 'invoiced';
+    // Inventory Posting: Deduct physical product stock
+    for (const item of invoiceItems) {
+      if (item.product_id) {
+        const prod = await Product.findById(item.product_id);
+        if (prod) {
+          prod.current_stock = Math.max(0, (prod.current_stock || 0) - item.quantity);
+          await prod.save();
+        }
+      }
+    }
+
+    order.status = 'converted';
     order.converted_invoice_id = newInvoice._id;
     order.converted_invoice_number = invoiceNumber;
+    order.actual_reorder_date = new Date();
     await order.save();
+
+    // Auto-schedule the NEXT repeat requirement if client gave a future repeat date
+    if (next_approx_repeat_date) {
+      try {
+        const count = await RepeatOrder.countDocuments();
+        const nextOrderNumber = `RO-${year}-${String(count + 1).padStart(4, '0')}`;
+        await RepeatOrder.create({
+          repeat_order_number: nextOrderNumber,
+          original_order_id: newInvoice._id,
+          original_order_number: newInvoice.invoice_number,
+          customer_id: order.customer_id._id,
+          customer_name: order.customer_name,
+          company_name: order.company_name,
+          phone: order.phone,
+          email: order.email,
+          expected_reorder_date: new Date(next_approx_repeat_date),
+          last_order_date: new Date(),
+          status: 'due_soon',
+          priority: grand_total > 50000 ? 'high' : 'medium',
+          total_quantity: invoiceItems.reduce((acc, it) => acc + it.quantity, 0),
+          subtotal_amount: subtotal,
+          final_amount: grand_total,
+          items: invoiceItems.map((it) => ({
+            product_id: it.product_id,
+            product_name: it.product_name,
+            sku: it.hsn_code,
+            color: 'Standard',
+            sizes: { S: 0, M: 0, L: 0, XL: 0, '2XL': 0 },
+            quantity: it.quantity,
+            uom: it.uom,
+            unit_price: it.unit_price,
+            total_price: it.total_amount,
+          })),
+          warehouse_id: newInvoice.warehouse_id || null,
+          notes: `Follow-up cycle scheduled from ${newInvoice.invoice_number}`,
+        });
+      } catch (errN) {
+        console.error('Failed to create next repeat order cycle:', errN);
+      }
+    }
 
     res.json({
       success: true,
-      message: `Repeat order converted to Sales Invoice ${invoiceNumber}`,
+      message: `Repeat requirement successfully converted to Tax Invoice ${invoiceNumber}`,
       data: {
         repeat_order: order,
         invoice: newInvoice,

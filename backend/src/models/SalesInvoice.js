@@ -90,6 +90,10 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    approx_repeat_date: {
+      type: Date,
+      default: null,
+    },
     items: [invoiceItemSchema],
     pricing_tier: {
       type: String,

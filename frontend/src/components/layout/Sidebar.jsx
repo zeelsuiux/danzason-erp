@@ -20,6 +20,7 @@ import {
   Award,
   Sparkles,
   RotateCw,
+  Headphones,
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -59,6 +60,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { name: 'Sales Invoices', path: '/sales/invoices', icon: Receipt },
     { name: 'Upsell & Cross-sell', path: '/sales/upsell', icon: Sparkles },
     { name: 'Repeat Orders', path: '/sales/repeat-orders', icon: RotateCw },
+    { name: 'Customer Service & Complaints', path: '/sales/complaints', icon: Headphones },
   ];
 
   // 5. Finance

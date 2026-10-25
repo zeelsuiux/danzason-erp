@@ -64,6 +64,7 @@ export default function SalesInvoices() {
     warehouse_id: '',
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    approx_repeat_date: '',
     payment_terms: 'Net 30 Days',
     shipping_charges: 0,
     advance_paid: 0,
@@ -593,6 +594,7 @@ export default function SalesInvoices() {
         warehouse_id: '',
         invoice_date: new Date().toISOString().split('T')[0],
         due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        approx_repeat_date: '',
         payment_terms: 'Net 30 Days',
         shipping_charges: 0,
         advance_paid: 0,
@@ -885,7 +887,7 @@ export default function SalesInvoices() {
           )}
 
           {/* Primary Invoice Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 text-sm">
             <div>
               <label className="block font-bold text-slate-700 mb-1.5 text-sm">
                 Customer / Client <span className="text-rose-500">*</span>
@@ -966,6 +968,20 @@ export default function SalesInvoices() {
                 value={directForm.due_date}
                 onChange={(e) => setDirectForm({ ...directForm, due_date: e.target.value })}
                 className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1.5 text-sm flex items-center justify-between">
+                <span>Approx Repeat Date</span>
+                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">Optional</span>
+              </label>
+              <input
+                type="date"
+                value={directForm.approx_repeat_date || ''}
+                onChange={(e) => setDirectForm({ ...directForm, approx_repeat_date: e.target.value })}
+                className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand outline-none"
+                placeholder="Next reorder estimate"
               />
             </div>
           </div>
