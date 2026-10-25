@@ -11,6 +11,7 @@ const PurchaseInvoice = require('../models/PurchaseInvoice');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const BankAccount = require('../models/BankAccount');
 const { adjustBalance } = require('./bankAccountController');
+const { trackGoalProgressEvent } = require('../utils/targetGoalTracker');
 
 // ======================== CATEGORIES ========================
 exports.getCategories = async (req, res) => {
@@ -737,6 +738,15 @@ exports.awardQuotationAndGeneratePo = async (req, res) => {
 
     await purchaseOrder.save();
 
+    // Auto-update Target Goals for Procurement POs
+    trackGoalProgressEvent({
+      eventType: 'PURCHASE_ORDER',
+      count: 1,
+      amount: purchaseOrder.grand_total || purchaseOrder.subtotal || 0,
+      department: 'Procurement',
+      notes: `PO #${purchaseOrder.po_number} generated from inquiry`,
+    }).catch(() => {});
+
     const populatedPo = await PurchaseOrder.findById(purchaseOrder._id)
       .populate('supplier_id')
       .populate('warehouse_id')
@@ -916,6 +926,15 @@ exports.createOrder = async (req, res) => {
   try {
     const order = new PurchaseOrder(req.body);
     await order.save();
+
+    // Auto-update Target Goals for Procurement POs
+    trackGoalProgressEvent({
+      eventType: 'PURCHASE_ORDER',
+      count: 1,
+      amount: order.grand_total || order.subtotal || 0,
+      department: 'Procurement',
+      notes: `PO #${order.po_number} created`,
+    }).catch(() => {});
 
     // If linked to PR, update PR status
     if (order.pr_id) {

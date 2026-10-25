@@ -7,6 +7,7 @@ const Product = require('../models/Product');
 const Warehouse = require('../models/Warehouse');
 const BankAccount = require('../models/BankAccount');
 const { adjustBalance } = require('./bankAccountController');
+const { trackGoalProgressEvent } = require('../utils/targetGoalTracker');
 
 /**
  * Authoritative Product Price Resolver:
@@ -510,6 +511,15 @@ exports.createSalesOrder = async (req, res) => {
 
     await salesOrder.save();
 
+    // Auto-update Target Goals for Sales Orders
+    trackGoalProgressEvent({
+      eventType: 'SALES_ORDER',
+      count: 1,
+      amount: grand_total,
+      department: 'Sales & CRM',
+      notes: `Order #${soNumber} confirmed`,
+    }).catch(() => {});
+
     const populated = await SalesOrder.findById(salesOrder._id)
       .populate('customer_id')
       .populate('warehouse_id');
@@ -915,6 +925,15 @@ exports.createSalesInvoiceFromOrder = async (req, res) => {
       $inc: { pending_balance: balance },
     });
 
+    // Auto-update Target Goals for Sales Invoices
+    trackGoalProgressEvent({
+      eventType: 'SALES_INVOICE',
+      count: 1,
+      amount: invoice.total_amount || invoice.grand_total,
+      department: 'Sales & CRM',
+      notes: `Invoice #${invoice.invoice_number} generated`,
+    }).catch(() => {});
+
     res.status(201).json({
       success: true,
       message: 'Sales Tax Invoice generated successfully from quotation',
@@ -1172,6 +1191,15 @@ exports.createDirectSalesInvoice = async (req, res) => {
         $inc: { pending_balance: balance },
       });
     }
+
+    // Auto-update Target Goals for Direct Sales Invoice
+    trackGoalProgressEvent({
+      eventType: 'SALES_INVOICE',
+      count: 1,
+      amount: invoice.total_amount || invoice.grand_total,
+      department: 'Sales & CRM',
+      notes: `Direct Invoice #${invoice.invoice_number} created`,
+    }).catch(() => {});
 
     const populated = await SalesInvoice.findById(invoice._id)
       .populate('customer_id')
@@ -1590,6 +1618,14 @@ exports.recordSalesInvoicePayment = async (req, res) => {
       console.error('Failed to auto-post to Finance:', finErr);
     }
 
+    // Auto-update Target Goals for Collection & Finance
+    trackGoalProgressEvent({
+      eventType: 'COLLECTION_PAYMENT',
+      amount: addedPayment,
+      department: 'Finance & Accounts',
+      notes: `Payment collected: ₹${addedPayment.toLocaleString('en-IN')}`,
+    }).catch(() => {});
+
     const populated = await SalesInvoice.findById(id)
       .populate('customer_id')
       .populate('so_id');
@@ -1754,6 +1790,15 @@ exports.createVisitorOrder = async (req, res) => {
     });
 
     await salesOrder.save();
+
+    // Auto-update Target Goals for Sales Orders
+    trackGoalProgressEvent({
+      eventType: 'SALES_ORDER',
+      count: 1,
+      amount: grand_total,
+      department: 'Sales & CRM',
+      notes: `Order #${soNumber} confirmed`,
+    }).catch(() => {});
 
     const populated = await SalesOrder.findById(salesOrder._id)
       .populate('customer_id')

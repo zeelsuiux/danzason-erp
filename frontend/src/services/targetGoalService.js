@@ -46,6 +46,12 @@ const targetGoalService = {
     return response.data;
   },
 
+  // Quick increment progress (+1 order / count / amount)
+  quickIncrementGoal: async (id, data = { amount: 1 }) => {
+    const response = await api.post(`/targets/${id}/increment`, data);
+    return response.data;
+  },
+
   // Auto sync progress with live ERP transactions
   syncGoalProgress: async () => {
     const response = await api.post('/targets/sync-progress');

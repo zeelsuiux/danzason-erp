@@ -232,6 +232,21 @@ export default function TargetGoalManagement() {
     }
   };
 
+  // Quick increment progress (+1 order / unit)
+  const handleQuickIncrement = async (goal) => {
+    try {
+      const res = await targetGoalService.quickIncrementGoal(goal._id, { amount: 1 });
+      if (res?.data) {
+        setGoals((prev) =>
+          prev.map((g) => (g._id === goal._id ? { ...g, ...res.data } : g))
+        );
+      }
+      targetGoalService.getAnalyticsSummary().then((r) => r?.data && setAnalytics(r.data));
+    } catch (err) {
+      console.error('Failed to quick increment goal:', err);
+    }
+  };
+
   // Delete Goal
   const handleDeleteGoal = async (id) => {
     if (!window.confirm('Are you sure you want to permanently delete this target goal?')) return;
@@ -852,8 +867,17 @@ export default function TargetGoalManagement() {
 
                   {/* Progress Bar & Value Metric */}
                   <div className="space-y-1.5 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
-                    <div className="flex items-baseline justify-between text-xs">
-                      <span className="text-slate-500 font-medium">Actual / Target:</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 font-medium">Actual / Target:</span>
+                        <button
+                          onClick={() => handleQuickIncrement(goal)}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 transition shadow-2xs flex items-center gap-0.5"
+                          title={`Quick add +1 ${goal.metric_unit}`}
+                        >
+                          <Plus className="w-2.5 h-2.5" />1 {goal.metric_unit === '₹' ? 'Sale' : goal.metric_unit}
+                        </button>
+                      </div>
                       <span className="font-bold text-slate-800 font-mono">
                         {renderMetric(goal.actual_value, goal.metric_unit)} /{' '}
                         <span className="text-slate-400">

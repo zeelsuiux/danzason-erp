@@ -25,6 +25,7 @@ import {
   Megaphone,
   TrendingUp,
   Landmark,
+  CreditCard,
   Target,
   ChevronDown,
 } from 'lucide-react';
@@ -90,6 +91,7 @@ export default function Sidebar({ isOpen, onClose }) {
       items: [
         { name: 'Finance Overview', path: '/finance', icon: WalletCards },
         { name: 'Owner Capital & Drawings', path: '/finance/capital', icon: Landmark },
+        { name: 'Bank Accounts (બેંક એકાઉન્ટ)', path: '/purchase/settings?tab=bank_accounts', icon: CreditCard },
       ],
     },
     {

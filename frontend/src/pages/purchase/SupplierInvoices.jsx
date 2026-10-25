@@ -14,12 +14,14 @@ import {
   Package,
   Search,
   Warehouse,
+  Landmark,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
 import Modal from '../../components/common/Modal';
 import StatusBadge from '../../components/common/StatusBadge';
 import { ft } from '../../services/procurementService';
+import bankAccountService from '../../services/bankAccountService';
 
 export default function SupplierInvoices() {
   const navigate = useNavigate();
@@ -30,6 +32,7 @@ export default function SupplierInvoices() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedBill, setSelectedBill] = useState(null);
+  const [bankAccounts, setBankAccounts] = useState([]);
 
   // Purchase Bill Modal (Create & Edit)
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -44,6 +47,7 @@ export default function SupplierInvoices() {
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
     payment_mode: 'Bank Transfer / NEFT',
+    bank_account_id: '',
     reference_number: '',
     remarks: '',
   });
@@ -56,7 +60,18 @@ export default function SupplierInvoices() {
 
   useEffect(() => {
     loadInvoices(pagination.page);
+    loadBankAccounts();
   }, [pagination.page]);
+
+  const loadBankAccounts = async () => {
+    try {
+      const res = await bankAccountService.getBankAccounts({ is_active: true });
+      const list = Array.isArray(res.data) ? res.data : [];
+      setBankAccounts(list);
+    } catch (err) {
+      console.error('Failed to load bank accounts:', err);
+    }
+  };
 
   const loadInvoices = async (page = 1) => {
     try {
@@ -83,10 +98,12 @@ export default function SupplierInvoices() {
   const handleOpenPayment = (bill) => {
     const bal = bill.balance_amount !== undefined ? bill.balance_amount : (bill.grand_total - (bill.paid_amount || 0));
     setPaymentBill(bill);
+    const defaultBank = bankAccounts.find((b) => b.is_default_payment) || bankAccounts[0];
     setPaymentForm({
       amount: bal > 0 ? bal : '',
       payment_date: new Date().toISOString().split('T')[0],
       payment_mode: 'Bank Transfer / NEFT',
+      bank_account_id: defaultBank?._id || '',
       reference_number: '',
       remarks: '',
     });
@@ -104,10 +121,16 @@ export default function SupplierInvoices() {
 
     try {
       setPaymentSubmitting(true);
-      await ft.recordInvoicePayment(paymentBill._id, paymentForm);
+      const selectedBank = bankAccounts.find((b) => b._id === paymentForm.bank_account_id);
+      await ft.recordInvoicePayment(paymentBill._id, {
+        ...paymentForm,
+        bank_account_id: paymentForm.bank_account_id || undefined,
+        bank_account_name: selectedBank?.account_name || undefined,
+      });
       setIsPaymentOpen(false);
       setPaymentBill(null);
       loadInvoices(pagination.page);
+      loadBankAccounts();
       alert('Payment recorded successfully!');
     } catch (err) {
       alert(err.message || 'Failed to record payment');
@@ -515,6 +538,48 @@ export default function SupplierInvoices() {
 
             {/* Fields */}
             <div className="space-y-3">
+              {/* Paying Bank Account Selector Prompt */}
+              <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/80 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="font-bold text-blue-950 flex items-center gap-1.5">
+                    <Landmark className="w-4 h-4 text-blue-600" />
+                    <span>Paying Bank Account (કઈ બેંકમાંથી ચૂકવ્યું? *)</span>
+                  </label>
+                  {paymentForm.bank_account_id && (
+                    <span className="font-mono text-[11px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">
+                      Bal: ₹
+                      {Number(
+                        bankAccounts.find((b) => b._id === paymentForm.bank_account_id)?.current_balance || 0
+                      ).toLocaleString('en-IN')}
+                    </span>
+                  )}
+                </div>
+                <select
+                  required
+                  value={paymentForm.bank_account_id}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bank_account_id: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-blue-300 text-xs font-semibold text-slate-800 outline-none focus:border-brand bg-white"
+                >
+                  <option value="">-- Select Paying Bank Account / Cash Vault --</option>
+                  {bankAccounts.map((acc) => (
+                    <option key={acc._id} value={acc._id}>
+                      {acc.account_name} ({acc.bank_name}) - A/c: {acc.account_number} [Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN')}]
+                      {acc.is_default_payment ? ' ★ Primary Default' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-[11px] text-blue-800 flex items-center justify-between pt-0.5">
+                  <span>This payment will be automatically debited from the chosen bank balance.</span>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/purchase/settings?tab=bank_accounts')}
+                    className="text-blue-700 font-bold hover:underline shrink-0"
+                  >
+                    + Manage Banks
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
                   Payment Amount <span className="text-rose-500">*</span>

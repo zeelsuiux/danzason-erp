@@ -20,5 +20,6 @@ router.delete('/:id', targetGoalController.deleteTargetGoal);
 
 // Record manual progress & notes
 router.post('/:id/progress', targetGoalController.recordGoalProgress);
+router.post('/:id/increment', targetGoalController.quickIncrementGoal);
 
 module.exports = router;

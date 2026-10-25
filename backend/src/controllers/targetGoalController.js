@@ -258,6 +258,65 @@ exports.deleteTargetGoal = async (req, res) => {
 };
 
 /**
+ * Quick increment goal actual progress (+1 order, +X revenue, etc.)
+ */
+exports.quickIncrementGoal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const incrementBy = Number(req.body.amount || req.body.increment || 1);
+
+    const goal = await TargetGoal.findById(id);
+    if (!goal) {
+      return res.status(404).json({ success: false, message: 'Target goal not found' });
+    }
+
+    const prevVal = goal.actual_value || 0;
+    goal.actual_value = prevVal + incrementBy;
+
+    if (goal.target_value > 0) {
+      goal.achievement_pct = Math.round((goal.actual_value / goal.target_value) * 100 * 10) / 10;
+    }
+
+    if (goal.achievement_pct >= 100) {
+      goal.status = 'achieved';
+    } else if (goal.achievement_pct >= 75) {
+      goal.status = 'on_track';
+    } else if (goal.achievement_pct >= 40) {
+      goal.status = 'active';
+    } else {
+      goal.status = 'behind';
+    }
+
+    if (goal.achievement_pct >= 100 && goal.incentive_value > 0) {
+      if (goal.incentive_type === 'percentage') {
+        goal.earned_incentive = Math.round((goal.actual_value * goal.incentive_value) / 100);
+      } else if (goal.incentive_type === 'fixed_bonus') {
+        goal.earned_incentive = goal.incentive_value;
+      }
+    }
+
+    goal.progress_notes.push({
+      note: req.body.note || `Recorded +${incrementBy} ${goal.metric_unit} achievement`,
+      recorded_by: req.body.recorded_by || 'User Action',
+      recorded_at: new Date(),
+      previous_value: prevVal,
+      new_value: goal.actual_value,
+    });
+
+    await goal.save();
+
+    res.json({
+      success: true,
+      message: `Goal updated: ${prevVal} ➔ ${goal.actual_value} ${goal.metric_unit}`,
+      data: goal,
+    });
+  } catch (error) {
+    console.error('Error in quickIncrementGoal:', error);
+    res.status(500).json({ success: false, message: 'Server error incrementing goal' });
+  }
+};
+
+/**
  * Record progress or manual note for a target goal
  */
 exports.recordGoalProgress = async (req, res) => {
