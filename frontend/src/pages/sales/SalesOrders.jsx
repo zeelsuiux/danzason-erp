@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
   Plus,
@@ -18,6 +18,7 @@ import {
   Package,
   Lock,
   Sparkles,
+  RotateCw,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
@@ -29,6 +30,7 @@ import { salesApi, St, Dt } from '../../services/procurementService';
 import upsellService from '../../services/upsellService';
 
 export default function SalesOrders() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [view, setView] = useState(searchParams.get('action') === 'new' ? 'create' : 'list'); // 'list' | 'create'
   const [orders, setOrders] = useState([]);
@@ -645,6 +647,14 @@ export default function SalesOrders() {
                   className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-brand hover:bg-emerald-100 transition inline-flex items-center gap-1"
                 >
                   <Receipt className="w-3.5 h-3.5" /> Tax Invoice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sales/repeat-orders`)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition inline-flex items-center gap-1"
+                  title="Schedule Repeat Order"
+                >
+                  <RotateCw className="w-3.5 h-3.5" /> Reorder
                 </button>
               </div>
             )}

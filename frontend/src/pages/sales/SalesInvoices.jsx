@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   X,
   Lock,
+  RotateCw,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
@@ -835,6 +836,16 @@ export default function SalesInvoices() {
                   title="Print / Download PDF (A4 & Thermal)"
                 >
                   <Printer className="w-4 h-4" />
+                </button>
+
+                {/* 4. 1-Click Repeat Order */}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sales/repeat-orders?invoiceId=${row._id}&action=quick_reorder`)}
+                  className="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                  title="Generate Repeat Order"
+                >
+                  <RotateCw className="w-4 h-4" />
                 </button>
               </div>
             )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   RotateCw,
   TrendingUp,
@@ -83,6 +84,10 @@ export default function RepeatOrderManagement() {
     notes: '',
   });
 
+  const [searchParams] = useSearchParams();
+  const invoiceIdParam = searchParams.get('invoiceId');
+  const actionParam = searchParams.get('action');
+
   // 1-Click Quick Reorder Form State
   const [quickForm, setQuickForm] = useState({
     selected_invoice_id: '',
@@ -91,6 +96,15 @@ export default function RepeatOrderManagement() {
   });
 
   const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    if (actionParam === 'quick_reorder' || invoiceIdParam) {
+      setActiveTab('quick_reorder');
+      if (invoiceIdParam) {
+        setQuickForm((prev) => ({ ...prev, selected_invoice_id: invoiceIdParam }));
+      }
+    }
+  }, [actionParam, invoiceIdParam]);
 
   useEffect(() => {
     loadAllData();
