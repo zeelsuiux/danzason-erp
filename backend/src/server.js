@@ -32,4 +32,8 @@ process.on('uncaughtException', (err) => {
   console.error('⚠️ Uncaught Exception:', err);
 });
 
+process.on('exit', (code) => {
+  console.log(`Backend process exiting with code: ${code}`);
+});
+
 startServer();
