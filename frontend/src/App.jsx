@@ -115,6 +115,7 @@ export default function App() {
           <Route path="sales/upsell-cross-sell" element={<UpsellCrossSellManagement />} />
           <Route path="upsell" element={<UpsellCrossSellManagement />} />
           <Route path="sales/repeat-orders" element={<RepeatOrderManagement />} />
+          <Route path="sales/repeat-orders/:id/convert" element={<RepeatOrderManagement />} />
           <Route path="sales/repeat" element={<RepeatOrderManagement />} />
           <Route path="repeat-orders" element={<RepeatOrderManagement />} />
           <Route path="sales/complaints" element={<ComplaintManagement />} />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import {
   RotateCw,
   Phone,
@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Layers,
   ArrowRight,
+  ArrowLeft,
   Building2,
   Users,
   Zap,
@@ -31,6 +32,9 @@ import {
   Edit3,
   History,
   ArrowUpRight,
+  MapPin,
+  Receipt,
+  Truck,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import Modal from '../../components/common/Modal';
@@ -39,8 +43,12 @@ import repeatOrderService from '../../services/repeatOrderService';
 export default function RepeatOrderManagement() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { id: routeConvertId } = useParams();
 
-  // Active Tab: 'due_7_days' (Requirements due within 7 days) | 'all' | 'contacted' | 'converted'
+  // View state: 'list' | 'convert'
+  const [view, setView] = useState(routeConvertId ? 'convert' : 'list');
+
+  // Active Tab for list: 'due_7_days' | 'all' | 'contacted' | 'converted'
   const [activeTab, setActiveTab] = useState('due_7_days');
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
@@ -56,7 +64,6 @@ export default function RepeatOrderManagement() {
   // Modals
   const [isLogCallModalOpen, setIsLogCallModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -70,7 +77,7 @@ export default function RepeatOrderManagement() {
     next_follow_up_date: '',
   });
 
-  // Convert to Order Form State (Editable Line Items)
+  // Convert to Order Form State (Full Page Form)
   const [convertForm, setConvertForm] = useState({
     warehouse_id: '',
     notes: '',
@@ -114,23 +121,97 @@ export default function RepeatOrderManagement() {
       if (analyticsRes?.data) {
         setAnalytics(analyticsRes.data);
       }
-      if (ordersRes?.data) {
-        setRepeatOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
-      }
+      const loadedOrders = ordersRes?.data && Array.isArray(ordersRes.data) ? ordersRes.data : [];
+      setRepeatOrders(loadedOrders);
+
       if (custRes?.data) {
         setCustomers(Array.isArray(custRes.data) ? custRes.data : custRes.data.customers || []);
       }
       if (prodRes?.data) {
         setProducts(Array.isArray(prodRes.data) ? prodRes.data : prodRes.data.products || []);
       }
-      if (whRes?.data) {
-        setWarehouses(Array.isArray(whRes.data) ? whRes.data : whRes.data.warehouses || []);
+      const loadedWarehouses = whRes?.data && Array.isArray(whRes.data) ? whRes.data : whRes.data?.warehouses || [];
+      setWarehouses(loadedWarehouses);
+
+      // If route has convert id, initialize convert view immediately
+      if (routeConvertId) {
+        const targetOrder = loadedOrders.find((ro) => ro._id === routeConvertId);
+        if (targetOrder) {
+          initializeConvertForm(targetOrder, loadedWarehouses);
+          setView('convert');
+        }
       }
     } catch (err) {
       console.error('Failed to load repeat order data:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper to initialize convert form
+  const initializeConvertForm = (order, whList = warehouses) => {
+    setSelectedOrder(order);
+
+    const initialItems = (order.items || []).map((it, idx) => {
+      const sizes = it.sizes || { S: 0, M: 0, L: 0, XL: 0, '2XL': 0 };
+      const qty = it.quantity || Object.values(sizes).reduce((acc, q) => acc + Number(q || 0), 0) || 1;
+      const rate = Number(it.unit_price || 450);
+      const gstRate = 5;
+      const taxable = qty * rate;
+      const gstAmt = Math.round((taxable * gstRate) / 100);
+
+      return {
+        id: it._id || `item_${idx}`,
+        product_id: it.product_id?._id || it.product_id || null,
+        product_name: it.product_name || 'Apparel Product',
+        sku: it.sku || '6109',
+        color: it.color || 'Standard',
+        sizes: { ...sizes },
+        quantity: qty,
+        unit_price: rate,
+        gst_rate: gstRate,
+        taxable_amount: taxable,
+        gst_amount: gstAmt,
+        total_amount: taxable + gstAmt,
+      };
+    });
+
+    setConvertForm({
+      warehouse_id: order.warehouse_id?._id || order.warehouse_id || (whList[0]?._id || ''),
+      notes: `Re-order generated from requirement ${order.repeat_order_number}`,
+      next_approx_repeat_date: '',
+      items: initialItems.length > 0 ? initialItems : [
+        {
+          id: 'item_0',
+          product_id: null,
+          product_name: 'Polo Neck T-Shirt',
+          sku: '6109',
+          color: 'Standard',
+          sizes: { S: 20, M: 50, L: 50, XL: 20, '2XL': 10 },
+          quantity: 150,
+          unit_price: 450,
+          gst_rate: 5,
+          taxable_amount: 150 * 450,
+          gst_amount: Math.round((150 * 450 * 5) / 100),
+          total_amount: 150 * 450 + Math.round((150 * 450 * 5) / 100),
+        },
+      ],
+    });
+  };
+
+  // Switch to Full Page Convert View
+  const handleOpenConvertFullPage = (order) => {
+    initializeConvertForm(order);
+    setView('convert');
+    navigate(`/sales/repeat-orders/${order._id}/convert`, { replace: false });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Back to List View
+  const handleBackToList = () => {
+    setView('list');
+    setSelectedOrder(null);
+    navigate('/sales/repeat-orders');
   };
 
   // Filtered Orders List
@@ -226,60 +307,7 @@ export default function RepeatOrderManagement() {
     setIsHistoryModalOpen(true);
   };
 
-  // Open Convert to Order Modal (Initialize editable items)
-  const handleOpenConvertModal = (order) => {
-    setSelectedOrder(order);
-
-    const initialItems = (order.items || []).map((it, idx) => {
-      const sizes = it.sizes || { S: 0, M: 0, L: 0, XL: 0, '2XL': 0 };
-      const qty = it.quantity || Object.values(sizes).reduce((acc, q) => acc + Number(q || 0), 0) || 1;
-      const rate = Number(it.unit_price || 450);
-      const gstRate = 5;
-      const taxable = qty * rate;
-      const gstAmt = Math.round((taxable * gstRate) / 100);
-
-      return {
-        id: it._id || `item_${idx}`,
-        product_id: it.product_id?._id || it.product_id || null,
-        product_name: it.product_name || 'Apparel Product',
-        sku: it.sku || '6109',
-        color: it.color || 'Standard',
-        sizes: { ...sizes },
-        quantity: qty,
-        unit_price: rate,
-        gst_rate: gstRate,
-        taxable_amount: taxable,
-        gst_amount: gstAmt,
-        total_amount: taxable + gstAmt,
-      };
-    });
-
-    setConvertForm({
-      warehouse_id: order.warehouse_id?._id || order.warehouse_id || (warehouses[0]?._id || ''),
-      notes: `Re-order generated from requirement ${order.repeat_order_number}`,
-      next_approx_repeat_date: '',
-      items: initialItems.length > 0 ? initialItems : [
-        {
-          id: 'item_0',
-          product_id: null,
-          product_name: 'Polo Neck T-Shirt',
-          sku: '6109',
-          color: 'Standard',
-          sizes: { S: 20, M: 50, L: 50, XL: 20, '2XL': 10 },
-          quantity: 150,
-          unit_price: 450,
-          gst_rate: 5,
-          taxable_amount: 150 * 450,
-          gst_amount: Math.round((150 * 450 * 5) / 100),
-          total_amount: 150 * 450 + Math.round((150 * 450 * 5) / 100),
-        },
-      ],
-    });
-
-    setIsConvertModalOpen(true);
-  };
-
-  // Convert Modal: Update Size Quantity
+  // Convert Full Page: Update Size Quantity
   const handleUpdateItemSize = (itemIndex, sizeKey, newQty) => {
     setConvertForm((prev) => {
       const updatedItems = [...prev.items];
@@ -300,7 +328,7 @@ export default function RepeatOrderManagement() {
     });
   };
 
-  // Convert Modal: Update Unit Price or Direct Quantity
+  // Convert Full Page: Update Unit Price or Field
   const handleUpdateItemField = (itemIndex, field, value) => {
     setConvertForm((prev) => {
       const updatedItems = [...prev.items];
@@ -321,7 +349,7 @@ export default function RepeatOrderManagement() {
     });
   };
 
-  // Convert Modal: Remove Item Row
+  // Convert Full Page: Remove Item Row
   const handleRemoveConvertItem = (itemIndex) => {
     if (convertForm.items.length <= 1) {
       alert('Order must contain at least one product item');
@@ -333,12 +361,12 @@ export default function RepeatOrderManagement() {
     }));
   };
 
-  // Convert Modal: Add Product Row
+  // Convert Full Page: Add Product Row
   const handleAddConvertItem = () => {
     const newItem = {
       id: `item_${Date.now()}`,
       product_id: null,
-      product_name: 'Additional Product',
+      product_name: 'Additional Product Style',
       sku: '6109',
       color: 'Standard',
       sizes: { S: 10, M: 25, L: 25, XL: 10, '2XL': 5 },
@@ -356,7 +384,7 @@ export default function RepeatOrderManagement() {
     }));
   };
 
-  // Convert Modal: Calculations
+  // Convert Full Page: Calculations
   const convertTotals = useMemo(() => {
     const totalQty = convertForm.items.reduce((acc, it) => acc + Number(it.quantity || 0), 0);
     const subtotal = convertForm.items.reduce((acc, it) => acc + Number(it.taxable_amount || 0), 0);
@@ -366,7 +394,7 @@ export default function RepeatOrderManagement() {
     return { totalQty, subtotal, gstTotal, grandTotal };
   }, [convertForm.items]);
 
-  // Submit Conversion to Invoice / Sales Order
+  // Submit Conversion to Live Tax Invoice
   const handleConfirmConversion = async (e) => {
     e.preventDefault();
     if (!selectedOrder) return;
@@ -387,7 +415,7 @@ export default function RepeatOrderManagement() {
 
       const invNumber = res?.data?.invoice?.invoice_number || 'INV-SALES';
       alert(`Success! Repeat requirement successfully converted to Tax Invoice ${invNumber}`);
-      setIsConvertModalOpen(false);
+      handleBackToList();
       loadAllData();
     } catch (err) {
       alert(err.message || 'Failed to convert order');
@@ -441,12 +469,429 @@ export default function RepeatOrderManagement() {
     }
   };
 
+  // =========================================================================
+  // VIEW A: FULL PAGE ORDER CONVERSION STUDIO
+  // =========================================================================
+  if (view === 'convert' && selectedOrder) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expDate = selectedOrder.expected_reorder_date ? new Date(selectedOrder.expected_reorder_date) : null;
+    let daysRemaining = null;
+    if (expDate) {
+      daysRemaining = Math.ceil((expDate.getTime() - today.getTime()) / 86400000);
+    }
+
+    return (
+      <div className="space-y-6 pb-20">
+        {/* Full Page Navigation Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleBackToList}
+              className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition shadow-2xs cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-600" />
+              <span>Back to Repeat Sales List</span>
+            </button>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                  Convert Repeat Requirement to Live Order
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                  {selectedOrder.repeat_order_number}
+                </span>
+                {daysRemaining !== null && daysRemaining <= 7 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Due in {daysRemaining <= 0 ? 'Today' : `${daysRemaining} days`}</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Full-page order conversion studio: review client profile, edit size-wise quantities, add/remove product styles, and generate an official GST Sales Invoice.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBackToList}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition"
+            >
+              Discard Changes
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={handleConfirmConversion}
+              className="px-5 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-xs flex items-center gap-2 cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              <span>{actionLoading ? 'Creating Invoice...' : 'Confirm & Create Live Invoice'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Master Context Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Client & Billing Information */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-brand" />
+                Client & Account Profile
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-50 text-blue-700 border border-blue-200">
+                {selectedOrder.customer_id?.customer_type || 'B2B Client'}
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-base font-black text-slate-900">
+                {selectedOrder.customer_name}
+              </div>
+              {selectedOrder.company_name && (
+                <div className="text-xs text-slate-600 font-medium">
+                  {selectedOrder.company_name}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-1 space-y-1.5 text-xs text-slate-600 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Phone:</span>
+                <span className="font-bold text-slate-800">{selectedOrder.phone || 'N/A'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Email:</span>
+                <span className="font-medium text-slate-700">{selectedOrder.email || 'N/A'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Billing State:</span>
+                <span className="font-bold text-slate-800">
+                  {selectedOrder.customer_id?.billing_address?.state || 'Gujarat'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Original Invoice & Requirement Details */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+                Original Invoice Reference
+              </span>
+              <span className="font-mono text-xs font-bold text-slate-700">
+                {selectedOrder.original_order_number || selectedOrder.repeat_order_number}
+              </span>
+            </div>
+
+            <div className="space-y-1.5 text-xs text-slate-600">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Original Invoice Date:</span>
+                <span className="font-medium text-slate-800">
+                  {selectedOrder.last_order_date
+                    ? new Date(selectedOrder.last_order_date).toLocaleDateString('en-IN')
+                    : 'N/A'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Original Billed Amount:</span>
+                <span className="font-bold text-emerald-700">
+                  ₹{Number(selectedOrder.final_amount || selectedOrder.subtotal_amount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Target Repeat Date:</span>
+                <span className="font-bold text-slate-900">
+                  {expDate ? expDate.toLocaleDateString('en-IN') : 'N/A'}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">
+                Latest Client Call Feedback:
+              </span>
+              <p className="text-xs text-slate-700 italic bg-slate-50 p-2 rounded-xl border border-slate-200/60 line-clamp-2">
+                {selectedOrder.communications_log && selectedOrder.communications_log.length > 0
+                  ? `"${selectedOrder.communications_log[selectedOrder.communications_log.length - 1].client_answer || selectedOrder.communications_log[selectedOrder.communications_log.length - 1].summary}"`
+                  : 'No client discussion logged prior to conversion.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Card 3: Logistics & Next Cadence Settings */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-blue-600" />
+                Fulfillment & Next Cycle
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Dispatch Warehouse Location <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={convertForm.warehouse_id}
+                onChange={(e) => setConvertForm({ ...convertForm, warehouse_id: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-brand"
+              >
+                {warehouses.map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {w.warehouse_name} ({w.warehouse_code || 'HUB'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Schedule Next Approx Repeat Date</span>
+                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                  Optional
+                </span>
+              </label>
+              <input
+                type="date"
+                value={convertForm.next_approx_repeat_date}
+                onChange={(e) => setConvertForm({ ...convertForm, next_approx_repeat_date: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-brand"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Automatically sets the next 7-day alert cycle for this client.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Product Line Items & Size Breakdown Studio (Full Width Table) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-emerald-600" />
+                <span>Product Line Items & Size Quantities (Fully Editable)</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Directly adjust S, M, L, XL, 2XL quantities, edit unit rates, or add custom style rows as agreed upon with the customer.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddConvertItem}
+              className="px-3.5 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Product Line</span>
+            </button>
+          </div>
+
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs min-w-[950px]">
+              <thead className="bg-slate-50 border-b border-slate-200 font-black text-slate-600 text-[11px] uppercase tracking-wider">
+                <tr>
+                  <th className="p-3 w-10 text-center text-slate-400">#</th>
+                  <th className="p-3 min-w-[240px]">Product / Style Name</th>
+                  <th className="p-3 text-center min-w-[320px]">Size-Wise Breakdown (Editable Pieces)</th>
+                  <th className="p-3 text-center w-24">Total Pcs</th>
+                  <th className="p-3 text-right w-28">Rate (₹)</th>
+                  <th className="p-3 text-right w-28">Taxable</th>
+                  <th className="p-3 text-center w-20">GST %</th>
+                  <th className="p-3 text-right w-28">Line Total</th>
+                  <th className="p-3 text-center w-12"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {convertForm.items.map((it, idx) => (
+                  <tr key={it.id || idx} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="p-3 text-center font-mono text-slate-400 font-bold">
+                      {idx + 1}
+                    </td>
+
+                    {/* Product Name & SKU */}
+                    <td className="p-3">
+                      <input
+                        type="text"
+                        value={it.product_name}
+                        onChange={(e) => handleUpdateItemField(idx, 'product_name', e.target.value)}
+                        placeholder="Product Name..."
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-brand outline-none"
+                      />
+                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                        <span>HSN/SKU: {it.sku || '6109'}</span>
+                        <span>•</span>
+                        <span>Color: {it.color || 'Standard'}</span>
+                      </div>
+                    </td>
+
+                    {/* Size Inputs: S, M, L, XL, 2XL */}
+                    <td className="p-3">
+                      <div className="grid grid-cols-5 gap-2 max-w-[340px] mx-auto">
+                        {['S', 'M', 'L', 'XL', '2XL'].map((sizeKey) => (
+                          <div key={sizeKey} className="text-center">
+                            <span className="block text-[10px] font-black text-slate-500 uppercase mb-0.5">
+                              {sizeKey}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={it.sizes?.[sizeKey] || 0}
+                              onChange={(e) => handleUpdateItemSize(idx, sizeKey, e.target.value)}
+                              className="w-full text-center px-1 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-brand focus:ring-1 focus:ring-brand outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+
+                    {/* Total Quantity */}
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2.5 py-1 rounded-xl font-mono font-black text-xs bg-slate-100 text-slate-900 border border-slate-200">
+                        {it.quantity} pcs
+                      </span>
+                    </td>
+
+                    {/* Unit Price */}
+                    <td className="p-3 text-right">
+                      <div className="relative inline-block w-24">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={it.unit_price}
+                          onChange={(e) => handleUpdateItemField(idx, 'unit_price', e.target.value)}
+                          className="w-full pl-6 pr-2 py-1.5 text-right bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-brand outline-none"
+                        />
+                      </div>
+                    </td>
+
+                    {/* Taxable Amount */}
+                    <td className="p-3 text-right font-mono font-bold text-slate-800 text-xs">
+                      ₹{Number(it.taxable_amount || 0).toLocaleString('en-IN')}
+                    </td>
+
+                    {/* GST Rate */}
+                    <td className="p-3 text-center font-mono font-bold text-slate-600 text-xs">
+                      5%
+                    </td>
+
+                    {/* Line Total */}
+                    <td className="p-3 text-right font-mono font-black text-emerald-800 text-xs">
+                      ₹{Number(it.total_amount || 0).toLocaleString('en-IN')}
+                    </td>
+
+                    {/* Delete Item */}
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveConvertItem(idx)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                        title="Remove Item Row"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Bottom Summary & Confirmation Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          {/* Notes & Special Dispatch Instructions */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-2">
+            <label className="block text-xs font-bold text-slate-700">
+              Dispatch Instructions & Invoice Notes
+            </label>
+            <textarea
+              rows="3"
+              value={convertForm.notes}
+              onChange={(e) => setConvertForm({ ...convertForm, notes: e.target.value })}
+              placeholder="e.g. Approved with revised size quantities by client on phone. Dispatch via express delivery."
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-brand outline-none"
+            />
+            <p className="text-[11px] text-slate-400">
+              These notes will appear directly on the generated Sales Tax Invoice and dispatch slip.
+            </p>
+          </div>
+
+          {/* Grand Total Breakdown Card */}
+          <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span className="font-bold">Total Apparel Units</span>
+              <span className="font-mono font-bold text-slate-900">{convertTotals.totalQty} pieces</span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>Taxable Value (Subtotal)</span>
+              <span className="font-mono font-bold text-slate-900">
+                ₹{convertTotals.subtotal.toLocaleString('en-IN')}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>CGST (2.5%) + SGST (2.5%)</span>
+              <span className="font-mono font-bold text-slate-900">
+                ₹{convertTotals.gstTotal.toLocaleString('en-IN')}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-sm font-black text-slate-900">
+              <span>Final Tax Invoice Grand Total</span>
+              <span className="text-xl text-emerald-700 font-mono tracking-tight">
+                ₹{convertTotals.grandTotal.toLocaleString('en-IN')}
+              </span>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleBackToList}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition"
+              >
+                Cancel & Return
+              </button>
+
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleConfirmConversion}
+                className="px-6 py-2.5 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-xs flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>{actionLoading ? 'Creating Live Tax Invoice...' : 'Confirm & Create Live Invoice'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW B: REPEAT REQUIREMENTS LIST VIEW (DEFAULT)
+  // =========================================================================
   return (
     <div className="space-y-6 pb-12">
       {/* 1. Page Header */}
       <PageHeader
         title="Repeat Sales & Re-order Management"
-        subtitle="Track client approximate repeat dates, 7-day requirement alerts, call outcomes, and 1-click order conversion with editable quantities"
+        subtitle="Track client approximate repeat dates, 7-day requirement alerts, call outcomes, and 1-click full-page order conversion with editable quantities"
       >
         <button
           type="button"
@@ -849,7 +1294,7 @@ export default function RepeatOrderManagement() {
                         )}
                       </td>
 
-                      {/* Actions: 1. Log Call, 2. History, 3. Convert to Order */}
+                      {/* Actions: 1. Log Call, 2. History, 3. Convert to Order (Full Page) */}
                       <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
                         {/* Action 1: Log Call & Answer */}
                         <button
@@ -872,13 +1317,13 @@ export default function RepeatOrderManagement() {
                           <History className="w-4 h-4" />
                         </button>
 
-                        {/* Action 3: Convert to Order with Editable Quantities */}
+                        {/* Action 3: Convert to Order Full Page */}
                         {!isConverted ? (
                           <button
                             type="button"
-                            onClick={() => handleOpenConvertModal(ro)}
+                            onClick={() => handleOpenConvertFullPage(ro)}
                             className="px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 text-white hover:bg-emerald-700 transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-                            title="Convert to Live Order / Invoice with Full Quantity Control"
+                            title="Open Full Page Order Studio with Full Quantity Control"
                           >
                             <ShoppingBag className="w-3.5 h-3.5" />
                             <span>Convert to Order</span>
@@ -1111,235 +1556,7 @@ export default function RepeatOrderManagement() {
       </Modal>
 
       {/* ========================================================================= */}
-      {/* MODAL 3: CONVERT REPEAT TO ORDER (FULL EDITABLE LINE ITEMS & QUANTITIES) */}
-      {/* ========================================================================= */}
-      <Modal
-        isOpen={isConvertModalOpen}
-        onClose={() => setIsConvertModalOpen(false)}
-        title="Convert Repeat Requirement to Live Order"
-        maxWidth="max-w-4xl"
-      >
-        {selectedOrder && (
-          <form onSubmit={handleConfirmConversion} className="space-y-5 text-xs">
-            {/* Client & Destination Summary */}
-            <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                  Client & Billing Account
-                </span>
-                <h4 className="font-black text-slate-900 text-sm">
-                  {selectedOrder.customer_name}
-                </h4>
-                <p className="text-slate-600 text-xs">
-                  {selectedOrder.company_name} • Phone: {selectedOrder.phone || 'N/A'}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Fulfillment Warehouse
-                  </label>
-                  <select
-                    value={convertForm.warehouse_id}
-                    onChange={(e) => setConvertForm({ ...convertForm, warehouse_id: e.target.value })}
-                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-                  >
-                    {warehouses.map((w) => (
-                      <option key={w._id} value={w._id}>
-                        {w.warehouse_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Editable Line Items Section */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider">
-                    Product Line Items & Quantity Breakdown
-                  </h4>
-                  <p className="text-[11px] text-slate-500">
-                    Modify size quantities, add extra items, or adjust unit rates as requested by the client.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAddConvertItem}
-                  className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition inline-flex items-center gap-1 shadow-2xs cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Add Product Row</span>
-                </button>
-              </div>
-
-              {/* Table of Line Items */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 text-[11px] uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3 min-w-[180px]">Product Name</th>
-                      <th className="p-3 text-center min-w-[220px]">Size-Wise Breakdown (Editable)</th>
-                      <th className="p-3 text-center w-20">Total Qty</th>
-                      <th className="p-3 text-right w-24">Rate (₹)</th>
-                      <th className="p-3 text-right w-24">Line Total</th>
-                      <th className="p-3 text-center w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {convertForm.items.map((it, idx) => (
-                      <tr key={it.id || idx} className="hover:bg-slate-50/50">
-                        {/* Product Title */}
-                        <td className="p-3">
-                          <input
-                            type="text"
-                            value={it.product_name}
-                            onChange={(e) => handleUpdateItemField(idx, 'product_name', e.target.value)}
-                            className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white"
-                          />
-                        </td>
-
-                        {/* Size Inputs (S, M, L, XL, 2XL) */}
-                        <td className="p-3">
-                          <div className="grid grid-cols-5 gap-1.5">
-                            {['S', 'M', 'L', 'XL', '2XL'].map((sizeKey) => (
-                              <div key={sizeKey} className="text-center">
-                                <span className="block text-[10px] font-bold text-slate-500 uppercase">
-                                  {sizeKey}
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={it.sizes?.[sizeKey] || 0}
-                                  onChange={(e) => handleUpdateItemSize(idx, sizeKey, e.target.value)}
-                                  className="w-full text-center px-1 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold focus:border-brand"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-
-                        {/* Total Qty */}
-                        <td className="p-3 text-center">
-                          <span className="font-mono font-black text-xs text-slate-900 px-2 py-1 bg-slate-100 rounded-lg">
-                            {it.quantity}
-                          </span>
-                        </td>
-
-                        {/* Unit Rate */}
-                        <td className="p-3 text-right">
-                          <input
-                            type="number"
-                            min="0"
-                            value={it.unit_price}
-                            onChange={(e) => handleUpdateItemField(idx, 'unit_price', e.target.value)}
-                            className="w-20 text-right px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold focus:border-brand"
-                          />
-                        </td>
-
-                        {/* Line Total */}
-                        <td className="p-3 text-right font-mono font-black text-slate-900 text-xs">
-                          ₹{Number(it.total_amount || 0).toLocaleString('en-IN')}
-                        </td>
-
-                        {/* Delete Row */}
-                        <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveConvertItem(idx)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Calculations & Next Date Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="space-y-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Dispatch / Order Notes
-                  </label>
-                  <input
-                    type="text"
-                    value={convertForm.notes}
-                    onChange={(e) => setConvertForm({ ...convertForm, notes: e.target.value })}
-                    placeholder="e.g. Dispatched via Express Courier"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:border-brand outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Schedule Next Approx Repeat Date</span>
-                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
-                      Optional Cycle
-                    </span>
-                  </label>
-                  <input
-                    type="date"
-                    value={convertForm.next_approx_repeat_date}
-                    onChange={(e) => setConvertForm({ ...convertForm, next_approx_repeat_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:border-brand outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Total Card */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Total Quantity</span>
-                  <span className="font-mono font-bold text-slate-900">{convertTotals.totalQty} pcs</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Taxable Subtotal</span>
-                  <span className="font-mono font-bold text-slate-900">₹{convertTotals.subtotal.toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Apparel GST (5%)</span>
-                  <span className="font-mono font-bold text-slate-900">₹{convertTotals.gstTotal.toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 font-black text-sm text-slate-900">
-                  <span>Grand Total</span>
-                  <span className="text-emerald-700">₹{convertTotals.grandTotal.toLocaleString('en-IN')}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsConvertModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={actionLoading}
-                className="px-6 py-2.5 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>{actionLoading ? 'Converting...' : 'Confirm & Create Live Invoice'}</span>
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* ========================================================================= */}
-      {/* MODAL 4: MANUAL ADD REPEAT REQUIREMENT */}
+      {/* MODAL 3: MANUAL ADD REPEAT REQUIREMENT */}
       {/* ========================================================================= */}
       <Modal
         isOpen={isCreateModalOpen}
