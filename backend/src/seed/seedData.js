@@ -18,6 +18,12 @@ const TeamMember = require('../models/TeamMember');
 const seedAllData = async () => {
   console.log('🌱 Checking / Seeding Initial ERP Data...');
 
+  const existingGrn = await GoodsReceiptNote.findOne({ grn_number: 'GRN-2026-00001' });
+  if (existingGrn) {
+    console.log('✅ Initial ERP Data already seeded, skipping duplicate run.');
+    return;
+  }
+
   // Ensure Danza-Son Apparel Categories exist
   let categories = await SupplierCategory.find({ is_deleted: false });
   if (categories.length === 0) {

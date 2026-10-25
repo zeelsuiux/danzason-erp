@@ -8,11 +8,15 @@ const PORT = process.env.PORT || 5000;
 async function startServer() {
   try {
     await connectDB();
-    await seedAllData();
+    try {
+      await seedAllData();
+    } catch (seedErr) {
+      console.warn('⚠️ Seeding skipped or error:', seedErr.message);
+    }
 
-    app.listen(PORT, () => {
-      console.log(`🚀 Danza-son ERP Backend Server running on http://localhost:${PORT}`);
-      console.log(`📡 Purchase API Endpoints available at http://localhost:${PORT}/api/v1/purchase`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Danza-son ERP Backend Server running on http://0.0.0.0:${PORT}`);
+      console.log(`📡 Purchase API Endpoints available at http://0.0.0.0:${PORT}/api/v1/purchase`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
