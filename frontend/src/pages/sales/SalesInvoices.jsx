@@ -24,6 +24,7 @@ import {
   X,
   Lock,
   RotateCw,
+  Landmark,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
@@ -33,6 +34,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import ProductSearchDropdown from '../../components/common/ProductSearchDropdown';
 import { salesApi, Dt, St } from '../../services/procurementService';
 import { amountInWords } from '../../utils/numberToWords';
+import bankAccountService from '../../services/bankAccountService';
 
 export default function SalesInvoices() {
   const navigate = useNavigate();
@@ -97,11 +99,13 @@ export default function SalesInvoices() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [paymentForm, setPaymentForm] = useState({
     pay_mode_type: 'single', // 'single' | 'split'
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
-    payment_mode: 'Cash',
+    payment_mode: 'Bank Transfer / NEFT',
+    bank_account_id: '',
     reference_number: '',
     notes: '',
     split_cash: '',
@@ -121,10 +125,11 @@ export default function SalesInvoices() {
 
   const loadDependencies = async () => {
     try {
-      const [custRes, prodRes, whRes] = await Promise.all([
+      const [custRes, prodRes, whRes, bankRes] = await Promise.all([
         salesApi.getCustomers({ limit: 100 }).catch(() => ({ data: [] })),
         Dt.getProducts({ limit: 200, view: 'color' }).catch(() => ({ data: [] })),
         St.getWarehouses().catch(() => ({ data: [] })),
+        bankAccountService.getBankAccounts({ is_active: true }).catch(() => ({ data: [] })),
       ]);
       setCustomers(Array.isArray(custRes.data) ? custRes.data : []);
       const whList = whRes?.data?.warehouses || whRes?.data || [];
@@ -135,8 +140,9 @@ export default function SalesInvoices() {
         prodList = Array.isArray(fallback.data) ? fallback.data : [];
       }
       setProducts(prodList);
+      setBankAccounts(Array.isArray(bankRes?.data) ? bankRes.data : []);
     } catch (err) {
-      console.error('Failed to load customers/products/warehouses:', err);
+      console.error('Failed to load customers/products/warehouses/bankAccounts:', err);
     }
   };
 
@@ -170,11 +176,13 @@ export default function SalesInvoices() {
   // -------------------------------------------------------------
   const handleOpenPayment = (inv) => {
     setPaymentInvoice(inv);
+    const defaultBank = bankAccounts.find((b) => b.is_default_receiving) || bankAccounts[0];
     setPaymentForm({
       pay_mode_type: 'single',
       amount: inv.balance_amount || '',
       payment_date: new Date().toISOString().split('T')[0],
-      payment_mode: 'Cash',
+      payment_mode: 'Bank Transfer / NEFT',
+      bank_account_id: defaultBank?._id || '',
       reference_number: '',
       notes: '',
       split_cash: '',
@@ -225,6 +233,7 @@ export default function SalesInvoices() {
 
     try {
       setPaymentSubmitting(true);
+      const selectedBank = bankAccounts.find((b) => b._id === paymentForm.bank_account_id);
       await salesApi.recordInvoicePayment(paymentInvoice._id, {
         is_split_payment: isSplit,
         amount: !isSplit ? totalPaying : 0,
@@ -232,6 +241,8 @@ export default function SalesInvoices() {
         split_online: isSplit ? Number(paymentForm.split_online) : 0,
         payment_mode: paymentForm.payment_mode,
         payment_date: paymentForm.payment_date,
+        bank_account_id: paymentForm.bank_account_id || undefined,
+        bank_account_name: selectedBank?.account_name || undefined,
         reference_number: paymentForm.reference_number,
         notes: paymentForm.notes,
       });
@@ -2091,6 +2102,48 @@ export default function SalesInvoices() {
                 />
                 Split Payment (Cash + UPI)
               </label>
+            </div>
+
+            {/* Receiving Bank Account Prompt */}
+            <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200/80 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-bold text-emerald-950 flex items-center gap-1.5">
+                  <Landmark className="w-4 h-4 text-emerald-600" />
+                  <span>Receiving Bank Account (કઈ બેંકમાં પેમેન્ટ આવ્યું? *)</span>
+                </label>
+                {paymentForm.bank_account_id && (
+                  <span className="font-mono text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    Bal: ₹
+                    {Number(
+                      bankAccounts.find((b) => b._id === paymentForm.bank_account_id)?.current_balance || 0
+                    ).toLocaleString('en-IN')}
+                  </span>
+                )}
+              </div>
+              <select
+                required
+                value={paymentForm.bank_account_id}
+                onChange={(e) => setPaymentForm({ ...paymentForm, bank_account_id: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-emerald-300 text-xs font-semibold text-slate-800 outline-none focus:border-brand bg-white"
+              >
+                <option value="">-- Select Receiving Bank Account / Cash Vault --</option>
+                {bankAccounts.map((acc) => (
+                  <option key={acc._id} value={acc._id}>
+                    {acc.account_name} ({acc.bank_name}) - A/c: {acc.account_number} [Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN')}]
+                    {acc.is_default_receiving ? ' ★ Primary Default' : ''}
+                  </option>
+                ))}
+              </select>
+              <div className="text-[11px] text-emerald-800 flex items-center justify-between pt-0.5">
+                <span>The customer payment will be automatically credited to this bank account.</span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/purchase/settings?tab=bank_accounts')}
+                  className="text-emerald-700 font-bold hover:underline shrink-0"
+                >
+                  + Manage Banks
+                </button>
+              </div>
             </div>
 
             {paymentForm.pay_mode_type === 'single' ? (

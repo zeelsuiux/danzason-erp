@@ -2,7 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 
-export default function PageHeader({ title, subtitle, breadcrumbs = [], actions = null }) {
+export default function PageHeader({ title, subtitle, breadcrumbs = [], actions = null, children = null }) {
+  const actionContent = actions || children;
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-slate-200/80">
       <div>
@@ -41,7 +42,7 @@ export default function PageHeader({ title, subtitle, breadcrumbs = [], actions 
           </p>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2.5 shrink-0">{actions}</div>}
+      {actionContent && <div className="flex items-center gap-2.5 shrink-0">{actionContent}</div>}
     </div>
   );
 }

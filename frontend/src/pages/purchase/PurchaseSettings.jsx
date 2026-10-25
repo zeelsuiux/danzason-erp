@@ -21,6 +21,12 @@ import {
   Crown,
   GitFork,
   ArrowRight,
+  Landmark,
+  CreditCard,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -29,11 +35,20 @@ import Modal from '../../components/common/Modal';
 import StatusBadge from '../../components/common/StatusBadge';
 import { ft, St } from '../../services/procurementService';
 import teamService from '../../services/teamService';
+import bankAccountService from '../../services/bankAccountService';
 
 export default function PurchaseSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(urlTab === 'departments' ? 'departments' : urlTab === 'hierarchy' ? 'hierarchy' : 'categories'); // 'categories' | 'suppliers' | 'warehouses' | 'departments' | 'hierarchy'
+  const [activeTab, setActiveTab] = useState(
+    urlTab === 'departments'
+      ? 'departments'
+      : urlTab === 'hierarchy'
+      ? 'hierarchy'
+      : urlTab === 'bank_accounts'
+      ? 'bank_accounts'
+      : 'categories'
+  );
 
   // ======================== WAREHOUSES STATE ========================
   const [warehouses, setWarehouses] = useState([]);
@@ -157,6 +172,35 @@ export default function PurchaseSettings() {
   };
   const [hierFormData, setHierFormData] = useState(initialHierForm);
 
+  // ======================== BANK ACCOUNTS STATE ========================
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [baLoading, setBaLoading] = useState(true);
+  const [baSearch, setBaSearch] = useState('');
+  const [baTypeFilter, setBaTypeFilter] = useState('all'); // 'all' | 'current' | 'savings' | 'overdraft_cc' | 'cash' | 'upi'
+  const [isBaModalOpen, setIsBaModalOpen] = useState(false);
+  const [editingBa, setEditingBa] = useState(null);
+  const [baSaving, setBaSaving] = useState(false);
+  const [baError, setBaError] = useState('');
+  const [baSummary, setBaSummary] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+
+  const initialBaForm = {
+    account_name: '',
+    bank_name: '',
+    account_number: '',
+    account_holder_name: 'Danza-Son Apparels & Textiles',
+    account_type: 'current',
+    ifsc_code: '',
+    branch_name: '',
+    upi_id: '',
+    opening_balance: 0,
+    current_balance: 0,
+    is_default_receiving: false,
+    is_default_payment: false,
+    is_active: true,
+    notes: '',
+  };
+  const [baFormData, setBaFormData] = useState(initialBaForm);
 
   useEffect(() => {
     loadWarehouses();
@@ -164,7 +208,141 @@ export default function PurchaseSettings() {
     loadSuppliers();
     loadDepartments();
     loadHierarchies();
+    loadBankAccounts();
   }, []);
+
+  const loadBankAccounts = async () => {
+    try {
+      setBaLoading(true);
+      setBaError('');
+      const res = await bankAccountService.getBankAccounts();
+      const list = Array.isArray(res.data) ? res.data : [];
+      setBankAccounts(list);
+      setBaSummary(res.summary || null);
+    } catch (err) {
+      setBaError(err.message || 'Failed to load bank accounts');
+    } finally {
+      setBaLoading(false);
+    }
+  };
+
+  const handleOpenAddBa = () => {
+    setEditingBa(null);
+    setBaFormData(initialBaForm);
+    setBaError('');
+    setIsBaModalOpen(true);
+  };
+
+  const handleOpenEditBa = (ba) => {
+    setEditingBa(ba);
+    setBaFormData({
+      account_name: ba.account_name || '',
+      bank_name: ba.bank_name || '',
+      account_number: ba.account_number || '',
+      account_holder_name: ba.account_holder_name || 'Danza-Son Apparels & Textiles',
+      account_type: ba.account_type || 'current',
+      ifsc_code: ba.ifsc_code || '',
+      branch_name: ba.branch_name || '',
+      upi_id: ba.upi_id || '',
+      opening_balance: ba.opening_balance ?? 0,
+      current_balance: ba.current_balance ?? 0,
+      is_default_receiving: Boolean(ba.is_default_receiving),
+      is_default_payment: Boolean(ba.is_default_payment),
+      is_active: ba.is_active !== undefined ? ba.is_active : true,
+      notes: ba.notes || '',
+    });
+    setBaError('');
+    setIsBaModalOpen(true);
+  };
+
+  const handleSaveBa = async (e) => {
+    e.preventDefault();
+    try {
+      setBaSaving(true);
+      setBaError('');
+      if (!baFormData.account_name.trim()) throw new Error('Account display name is required');
+      if (!baFormData.bank_name.trim()) throw new Error('Bank name is required');
+      if (!baFormData.account_number.trim()) throw new Error('Account number is required');
+
+      if (editingBa) {
+        await bankAccountService.updateBankAccount(editingBa._id, baFormData);
+      } else {
+        await bankAccountService.createBankAccount(baFormData);
+      }
+
+      setIsBaModalOpen(false);
+      loadBankAccounts();
+    } catch (err) {
+      setBaError(err.message || 'Failed to save bank account');
+    } finally {
+      setBaSaving(false);
+    }
+  };
+
+  const handleDeleteBa = async (ba) => {
+    if (ba.is_default_receiving || ba.is_default_payment) {
+      alert('Cannot delete a default bank account. Please assign default status to another bank first.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete bank account "${ba.account_name}" (${ba.bank_name})?`)) {
+      return;
+    }
+    try {
+      await bankAccountService.deleteBankAccount(ba._id);
+      loadBankAccounts();
+    } catch (err) {
+      alert(err.message || 'Failed to delete bank account');
+    }
+  };
+
+  const handleToggleBaStatus = async (ba) => {
+    try {
+      await bankAccountService.updateBankAccount(ba._id, { is_active: !ba.is_active });
+      loadBankAccounts();
+    } catch (err) {
+      alert(err.message || 'Failed to update account status');
+    }
+  };
+
+  const handleSetDefaultReceiving = async (ba) => {
+    try {
+      await bankAccountService.updateBankAccount(ba._id, { is_default_receiving: true });
+      loadBankAccounts();
+    } catch (err) {
+      alert(err.message || 'Failed to set default receiving account');
+    }
+  };
+
+  const handleSetDefaultPayment = async (ba) => {
+    try {
+      await bankAccountService.updateBankAccount(ba._id, { is_default_payment: true });
+      loadBankAccounts();
+    } catch (err) {
+      alert(err.message || 'Failed to set default paying account');
+    }
+  };
+
+  const copyToClipboard = (text, fieldKey) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldKey);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const filteredBankAccounts = bankAccounts.filter((acc) => {
+    const q = baSearch.toLowerCase().trim();
+    const matchSearch =
+      !q ||
+      acc.account_name?.toLowerCase().includes(q) ||
+      acc.bank_name?.toLowerCase().includes(q) ||
+      acc.account_number?.toLowerCase().includes(q) ||
+      acc.ifsc_code?.toLowerCase().includes(q) ||
+      acc.upi_id?.toLowerCase().includes(q) ||
+      acc.branch_name?.toLowerCase().includes(q);
+
+    const matchType = baTypeFilter === 'all' || acc.account_type === baTypeFilter;
+    return matchSearch && matchType;
+  });
 
   const loadSuppliers = async () => {
     try {
@@ -1170,6 +1348,22 @@ export default function PurchaseSettings() {
             </span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setActiveTab('bank_accounts')}
+            className={`flex items-center gap-2 py-3 px-4 font-bold text-sm transition-all border-b-2 -mb-[1px] ${
+              activeTab === 'bank_accounts'
+                ? 'border-brand text-brand bg-white rounded-t-lg shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Landmark className="w-4 h-4" />
+            <span>Bank Accounts (બેંક એકાઉન્ટ્સ)</span>
+            <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 font-mono font-bold">
+              {bankAccounts.length}
+            </span>
+          </button>
+
         </div>
 
         {/* Tab 1: Centralized Warehouse Management */}
@@ -1839,6 +2033,336 @@ export default function PurchaseSettings() {
                         : hier.member_count > 0
                         ? `Cannot delete: ${hier.member_count} staff assigned`
                         : 'Delete Hierarchy Level'
+                    }
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+        )}
+
+        {/* Tab 6: Company Bank Accounts Management */}
+        {activeTab === 'bank_accounts' && (
+          <div className="p-5 space-y-4">
+            {/* Quick Bank Account KPI Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50/40 rounded-xl border border-emerald-100 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                  <Landmark className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-emerald-800">Total Company Bank Balance</div>
+                  <div className="text-xl font-black font-mono text-emerald-700">
+                    ₹{(baSummary?.total_balance || 0).toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[11px] text-emerald-600">Across {bankAccounts.length} Registered Accounts</div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-brand shadow-xs">
+                  <CreditCard className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-500">Active Accounts</div>
+                  <div className="text-xl font-black font-mono text-slate-900">
+                    {baSummary?.active_accounts || bankAccounts.filter((a) => a.is_active).length}
+                  </div>
+                  <div className="text-[11px] text-slate-400">Ready for payment transactions</div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+                  <ArrowDownLeft className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-emerald-800">Default Receiving (ગ્રાહક આવક)</div>
+                  <div className="text-sm font-bold text-slate-900 truncate">
+                    {baSummary?.default_receiving?.account_name || 'None Set'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {baSummary?.default_receiving ? `${baSummary.default_receiving.bank_name}` : 'Select a primary receiving account'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-100 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-white border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
+                  <ArrowUpRight className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-blue-800">Default Paying (વેન્ડર ચુકવણી)</div>
+                  <div className="text-sm font-bold text-slate-900 truncate">
+                    {baSummary?.default_payment?.account_name || 'None Set'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {baSummary?.default_payment ? `${baSummary.default_payment.bank_name}` : 'Select a primary paying account'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters, Search & Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={baSearch}
+                    onChange={(e) => setBaSearch(e.target.value)}
+                    placeholder="Search bank name, A/c no, IFSC, UPI..."
+                    className="pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-xs w-64 focus:border-brand outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+                  {[
+                    { id: 'all', label: 'All Types' },
+                    { id: 'current', label: 'Current' },
+                    { id: 'savings', label: 'Savings' },
+                    { id: 'overdraft_cc', label: 'OD / CC' },
+                    { id: 'cash', label: 'Cash Vault' },
+                    { id: 'upi', label: 'UPI / QR' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setBaTypeFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-md font-semibold transition ${
+                        baTypeFilter === tab.id
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenAddBa}
+                  className="px-4 py-2 rounded-lg bg-brand text-white font-bold text-xs hover:bg-brand-600 transition flex items-center gap-2 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Bank Account (નવું એકાઉન્ટ ઉમેરો)
+                </button>
+              </div>
+            </div>
+
+            {/* Bank Accounts DataTable */}
+            <DataTable
+              loading={baLoading}
+              data={filteredBankAccounts}
+              emptyMessage="No company bank accounts found. Click '+ Add Bank Account' to create your first account."
+              columns={[
+                {
+                  key: 'account_name',
+                  label: 'Account & Bank',
+                  render: (val, row) => (
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                        <Landmark className="w-4 h-4 text-brand shrink-0" />
+                        <span>{val}</span>
+                      </div>
+                      <div className="text-xs text-slate-500 font-medium">{row.bank_name}</div>
+                      <div className="text-[11px] text-slate-400">A/c Holder: {row.account_holder_name}</div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'account_number',
+                  label: 'Account Details',
+                  render: (val, row) => (
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          {val}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(val, `acc_${row._id}`)}
+                          className="text-slate-400 hover:text-brand transition p-1"
+                          title="Copy Account Number"
+                        >
+                          {copiedField === `acc_${row._id}` ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                      {row.ifsc_code && (
+                        <div className="flex items-center gap-1.5 text-slate-600">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">IFSC:</span>
+                          <span className="font-mono font-semibold">{row.ifsc_code}</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(row.ifsc_code, `ifsc_${row._id}`)}
+                            className="text-slate-400 hover:text-brand transition p-0.5"
+                            title="Copy IFSC"
+                          >
+                            {copiedField === `ifsc_${row._id}` ? (
+                              <Check className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      {row.branch_name && (
+                        <div className="text-[11px] text-slate-500 truncate max-w-xs">{row.branch_name}</div>
+                      )}
+                      {row.upi_id && (
+                        <div className="text-[11px] font-mono text-purple-700 font-medium">UPI: {row.upi_id}</div>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'account_type',
+                  label: 'Type',
+                  render: (val) => {
+                    const badgeStyles = {
+                      current: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                      savings: 'bg-blue-50 text-blue-700 border-blue-200',
+                      overdraft_cc: 'bg-purple-50 text-purple-700 border-purple-200',
+                      cash: 'bg-amber-50 text-amber-700 border-amber-200',
+                      upi: 'bg-pink-50 text-pink-700 border-pink-200',
+                    };
+                    const labels = {
+                      current: 'Current A/c',
+                      savings: 'Savings A/c',
+                      overdraft_cc: 'Overdraft / CC',
+                      cash: 'Cash Vault',
+                      upi: 'Corporate UPI',
+                    };
+                    return (
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-bold border ${
+                          badgeStyles[val] || 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {labels[val] || val}
+                      </span>
+                    );
+                  },
+                },
+                {
+                  key: 'current_balance',
+                  label: 'Current Balance',
+                  render: (val, row) => (
+                    <div>
+                      <div
+                        className={`font-mono font-black text-sm ${
+                          val < 0 ? 'text-rose-600' : 'text-emerald-700'
+                        }`}
+                      >
+                        ₹{(Number(val) || 0).toLocaleString('en-IN')}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        Opening: ₹{(Number(row.opening_balance) || 0).toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'defaults',
+                  label: 'Default Status',
+                  render: (_, row) => (
+                    <div className="space-y-1">
+                      {row.is_default_receiving ? (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Receiving Default (ગ્રાહક આવક)</span>
+                        </div>
+                      ) : (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefaultReceiving(row)}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-emerald-700 hover:underline flex items-center gap-1"
+                          >
+                            <Star className="w-3 h-3 text-slate-400" />
+                            Set as Receiving Default
+                          </button>
+                        </div>
+                      )}
+
+                      {row.is_default_payment ? (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 shadow-2xs">
+                          <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                          <span>Paying Default (વેન્ડર ચુકવણી)</span>
+                        </div>
+                      ) : (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefaultPayment(row)}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-blue-700 hover:underline flex items-center gap-1"
+                          >
+                            <Star className="w-3 h-3 text-slate-400" />
+                            Set as Paying Default
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'is_active',
+                  label: 'Status',
+                  render: (val) => (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-bold inline-flex items-center gap-1 ${
+                        val
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-slate-100 text-slate-500 border border-slate-200'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${val ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      {val ? 'Active' : 'Inactive'}
+                    </span>
+                  ),
+                },
+              ]}
+              actions={(row) => (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleBaStatus(row)}
+                    className={`p-1.5 rounded-lg transition ${
+                      row.is_active
+                        ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                        : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                    }`}
+                    title={row.is_active ? 'Deactivate Account' : 'Activate Account'}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditBa(row)}
+                    className="p-1.5 text-slate-500 hover:text-brand hover:bg-slate-100 rounded-lg transition"
+                    title="Edit Bank Account"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBa(row)}
+                    disabled={row.is_default_receiving || row.is_default_payment}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                    title={
+                      row.is_default_receiving || row.is_default_payment
+                        ? 'Default bank account cannot be deleted'
+                        : 'Delete Bank Account'
                     }
                   >
                     <Trash2 className="w-4 h-4" />
@@ -2667,6 +3191,243 @@ export default function PurchaseSettings() {
                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
               {editingHier ? 'Update Hierarchy Level' : 'Save Hierarchy Level'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ======================== MODAL: ADD / EDIT BANK ACCOUNT ======================== */}
+      <Modal
+        isOpen={isBaModalOpen}
+        onClose={() => setIsBaModalOpen(false)}
+        title={editingBa ? `Edit Bank Account: ${editingBa.account_name}` : 'Add Company Bank Account (નવું બેંક એકાઉન્ટ)'}
+        subtitle="Manage Danza-Son operational current accounts, OD credit limits, factory cash vaults and UPI handles used across Sales Receipts & Vendor Disbursements."
+        size="lg"
+      >
+        <form onSubmit={handleSaveBa} className="space-y-4 text-xs font-sans text-slate-800">
+          {baError && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{baError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Account Display Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={baFormData.account_name}
+                onChange={(e) => setBaFormData({ ...baFormData, account_name: e.target.value })}
+                placeholder="e.g. HDFC Bank Main Current A/c"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Bank / Institution Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={baFormData.bank_name}
+                onChange={(e) => setBaFormData({ ...baFormData, bank_name: e.target.value })}
+                placeholder="e.g. HDFC Bank Ltd or State Bank of India"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Account Type <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={baFormData.account_type}
+                onChange={(e) => setBaFormData({ ...baFormData, account_type: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none bg-white font-medium"
+              >
+                <option value="current">Current Account (મુખ્ય કરંટ એકાઉન્ટ)</option>
+                <option value="savings">Savings Account (બચત એકાઉન્ટ)</option>
+                <option value="overdraft_cc">Cash Credit / Overdraft (CC / OD Limit)</option>
+                <option value="cash">Cash Vault / Petty Cash (રોકડ તિજોરી / કેશ ડ્રોઅર)</option>
+                <option value="upi">Corporate UPI / Payment Gateway Wallet</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Account Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={baFormData.account_number}
+                onChange={(e) => setBaFormData({ ...baFormData, account_number: e.target.value })}
+                placeholder="e.g. 50200018892144 or CASH-001"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Account Holder Name</label>
+              <input
+                type="text"
+                value={baFormData.account_holder_name}
+                onChange={(e) => setBaFormData({ ...baFormData, account_holder_name: e.target.value })}
+                placeholder="Danza-Son Apparels & Textiles"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">IFSC Code (for NEFT/RTGS/IMPS)</label>
+              <input
+                type="text"
+                value={baFormData.ifsc_code}
+                onChange={(e) => setBaFormData({ ...baFormData, ifsc_code: e.target.value.toUpperCase() })}
+                placeholder="e.g. HDFC0000240"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono uppercase focus:border-brand outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Branch Name / Location</label>
+              <input
+                type="text"
+                value={baFormData.branch_name}
+                onChange={(e) => setBaFormData({ ...baFormData, branch_name: e.target.value })}
+                placeholder="e.g. Ring Road Textile Market Branch, Surat"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">UPI ID / VPA (Optional)</label>
+              <input
+                type="text"
+                value={baFormData.upi_id}
+                onChange={(e) => setBaFormData({ ...baFormData, upi_id: e.target.value })}
+                placeholder="e.g. danzason@okhdfcbank"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono focus:border-brand outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Opening Balance (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={baFormData.opening_balance}
+                onChange={(e) => setBaFormData({ ...baFormData, opening_balance: e.target.value })}
+                placeholder="0.00"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none bg-white"
+              />
+              <span className="text-[10px] text-slate-400">Balance at the start of book keeping</span>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Current Balance (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={baFormData.current_balance}
+                onChange={(e) => setBaFormData({ ...baFormData, current_balance: e.target.value })}
+                placeholder="0.00"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none bg-white"
+              />
+              <span className="text-[10px] text-slate-400">Auto-adjusted as receipts and payments are recorded</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 p-3 bg-slate-50/80 rounded-lg border border-slate-200">
+            <div className="text-xs font-bold text-slate-700">Default Payment Behavior Settings:</div>
+            
+            <div className="flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                id="ba_default_receiving"
+                checked={baFormData.is_default_receiving}
+                onChange={(e) => setBaFormData({ ...baFormData, is_default_receiving: e.target.checked })}
+                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer mt-0.5"
+              />
+              <label htmlFor="ba_default_receiving" className="text-xs cursor-pointer">
+                <span className="font-bold text-emerald-800">Set as Primary Receiving Account (ગ્રાહક આવક)</span>
+                <span className="block text-slate-500 text-[11px]">
+                  When recording incoming payment from customer sales invoices, this account will be automatically pre-selected.
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-start gap-2.5 pt-1">
+              <input
+                type="checkbox"
+                id="ba_default_payment"
+                checked={baFormData.is_default_payment}
+                onChange={(e) => setBaFormData({ ...baFormData, is_default_payment: e.target.checked })}
+                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5"
+              />
+              <label htmlFor="ba_default_payment" className="text-xs cursor-pointer">
+                <span className="font-bold text-blue-800">Set as Primary Paying Account (વેન્ડર ચુકવણી)</span>
+                <span className="block text-slate-500 text-[11px]">
+                  When recording outgoing payment for purchase bills to suppliers/contractors, this account will be automatically pre-selected.
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
+              <input
+                type="checkbox"
+                id="ba_is_active"
+                checked={baFormData.is_active}
+                onChange={(e) => setBaFormData({ ...baFormData, is_active: e.target.checked })}
+                className="w-4 h-4 text-brand rounded border-slate-300 focus:ring-brand cursor-pointer"
+              />
+              <label htmlFor="ba_is_active" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                Active Account (visible in payment recording dialogs across the ERP)
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Notes / Remarks</label>
+            <textarea
+              rows={2}
+              value={baFormData.notes}
+              onChange={(e) => setBaFormData({ ...baFormData, notes: e.target.value })}
+              placeholder="e.g. Primary bank for Surat textile trade receipts, RTGS limits, etc."
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsBaModalOpen(false)}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={baSaving}
+              className="px-4 py-2 rounded-lg bg-brand text-white font-bold hover:bg-brand-600 disabled:opacity-50 transition flex items-center gap-2 shadow-sm"
+            >
+              {baSaving && (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {editingBa ? 'Update Bank Account' : 'Save Bank Account'}
             </button>
           </div>
         </form>

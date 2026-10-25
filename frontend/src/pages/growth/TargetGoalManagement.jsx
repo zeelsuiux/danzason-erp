@@ -394,26 +394,27 @@ export default function TargetGoalManagement() {
       <PageHeader
         title="Target & Goal Management"
         subtitle="Set, monitor, and achieve departmental sales, production, procurement, and company-wide strategic growth goals."
-      >
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={handleAutoSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition shadow-xs disabled:opacity-50"
-            title="Auto-calculate actuals from live ERP invoices & purchase orders"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-emerald-600' : ''}`} />
-            {syncing ? 'Syncing Actuals...' : 'Auto-Sync ERP Actuals'}
-          </button>
-          <button
-            onClick={handleOpenCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Set New Target / Goal
-          </button>
-        </div>
-      </PageHeader>
+        actions={
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleAutoSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition shadow-xs disabled:opacity-50"
+              title="Auto-calculate actuals from live ERP invoices & purchase orders"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-emerald-600' : ''}`} />
+              {syncing ? 'Syncing Actuals...' : 'Auto-Sync ERP Actuals'}
+            </button>
+            <button
+              onClick={handleOpenCreate}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              + Set New Target / Goal
+            </button>
+          </div>
+        }
+      />
 
       {/* Top Executive KPI Cards */}
       {analytics && (
@@ -594,8 +595,17 @@ export default function TargetGoalManagement() {
             </button>
           </div>
 
-          <div className="text-xs text-slate-500 font-medium">
-            Showing <span className="font-bold text-slate-800">{filteredGoals.length}</span> targets
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Showing <span className="font-bold text-slate-800">{filteredGoals.length}</span> targets
+            </span>
+            <button
+              onClick={handleOpenCreate}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              + Set New Target
+            </button>
           </div>
         </div>
 

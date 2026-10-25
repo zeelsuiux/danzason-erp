@@ -9,6 +9,8 @@ const PurchaseOrder = require('../models/PurchaseOrder');
 const GoodsReceiptNote = require('../models/GoodsReceiptNote');
 const PurchaseInvoice = require('../models/PurchaseInvoice');
 const PurchaseReturn = require('../models/PurchaseReturn');
+const BankAccount = require('../models/BankAccount');
+const { adjustBalance } = require('./bankAccountController');
 
 // ======================== CATEGORIES ========================
 exports.getCategories = async (req, res) => {
@@ -1702,7 +1704,15 @@ exports.updateInvoiceDueDate = async (req, res) => {
 exports.recordInvoicePayment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, payment_date, payment_mode, reference_number, remarks } = req.body;
+    const {
+      amount,
+      payment_date,
+      payment_mode,
+      reference_number,
+      remarks,
+      bank_account_id,
+      bank_account_name,
+    } = req.body;
 
     const paymentAmount = Number(amount);
     if (!paymentAmount || paymentAmount <= 0) {
@@ -1711,6 +1721,18 @@ exports.recordInvoicePayment = async (req, res) => {
 
     const invoice = await PurchaseInvoice.findById(id);
     if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found' });
+
+    // Resolve Paying Bank Account
+    let targetBank = null;
+    if (bank_account_id) {
+      targetBank = await BankAccount.findById(bank_account_id);
+    }
+    if (!targetBank) {
+      targetBank = await BankAccount.findOne({ is_default_payment: true, is_deleted: false });
+    }
+    if (!targetBank) {
+      targetBank = await BankAccount.findOne({ is_deleted: false });
+    }
 
     const newPaid = (invoice.paid_amount || 0) + paymentAmount;
     const newBalance = Math.max(0, (invoice.grand_total || 0) - newPaid);
@@ -1726,19 +1748,27 @@ exports.recordInvoicePayment = async (req, res) => {
       payment_mode: payment_mode || 'Bank Transfer',
       reference_number: reference_number || '',
       remarks: remarks || '',
+      bank_account_id: targetBank?._id,
+      bank_account_name: targetBank?.account_name || bank_account_name || '',
     });
 
     const dateStr = payment_date
       ? new Date(payment_date).toLocaleDateString('en-IN')
       : new Date().toLocaleDateString('en-IN');
+    const bankDesc = targetBank ? ` from ${targetBank.account_name}` : '';
     const paymentNote = `[Payment: ₹${paymentAmount.toLocaleString('en-IN')} via ${
       payment_mode || 'Cash'
-    } on ${dateStr}${reference_number ? ` Ref: ${reference_number}` : ''}${
+    }${bankDesc} on ${dateStr}${reference_number ? ` Ref: ${reference_number}` : ''}${
       remarks ? ` - ${remarks}` : ''
     }]`;
     invoice.remarks = invoice.remarks ? `${invoice.remarks}\n${paymentNote}` : paymentNote;
 
     await invoice.save();
+
+    // Adjust Bank Account balance (Debit outgoing payment from company bank account)
+    if (targetBank && paymentAmount > 0) {
+      await adjustBalance(targetBank._id, paymentAmount, 'debit');
+    }
 
     // Decrement supplier pending balance
     if (invoice.supplier_id) {
@@ -1760,7 +1790,9 @@ exports.recordInvoicePayment = async (req, res) => {
         cat = 'Job Work / Processing Payment';
       }
       const pMode = payment_mode || 'Bank Transfer';
-      const accName = pMode.toLowerCase().includes('cash')
+      const accName = targetBank
+        ? `${targetBank.account_name} (${targetBank.bank_name})`
+        : pMode.toLowerCase().includes('cash')
         ? 'Cash Drawer / Petty Cash'
         : 'Primary Bank Account (HDFC Bank - Current A/c #5020001)';
 
@@ -1773,6 +1805,7 @@ exports.recordInvoicePayment = async (req, res) => {
         party_name: invoice.supplier_id?.supplier_name || 'Vendor',
         party_type: invoice.purchase_type === 'manufacturing' || invoice.is_service_bill ? 'contractor' : 'supplier',
         supplier_id: invoice.supplier_id?._id || invoice.supplier_id,
+        bank_account_id: targetBank?._id,
         bill_id: invoice._id,
         bill_type: 'purchase_invoice',
         bill_number: invoice.invoice_number || invoice.vendor_bill_number || 'PB',
@@ -1780,7 +1813,7 @@ exports.recordInvoicePayment = async (req, res) => {
         payment_method: pMode.includes('UPI') ? 'UPI' : pMode.includes('Cash') ? 'Cash' : 'Bank Transfer',
         account_name: accName,
         reference_number: reference_number || invoice.invoice_number || '',
-        description: remarks || `Payment recorded for ${cat}: ${invoice.invoice_number || ''}`,
+        description: remarks || `Payment recorded for ${cat} via ${targetBank ? targetBank.account_name : 'Bank'}: ${invoice.invoice_number || ''}`,
         is_manual: false,
         status: 'confirmed',
         created_by: 'System (Purchase Billing)',
