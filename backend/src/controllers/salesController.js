@@ -5,6 +5,8 @@ const SalesInvoice = require('../models/SalesInvoice');
 const SalesReturn = require('../models/SalesReturn');
 const Product = require('../models/Product');
 const Warehouse = require('../models/Warehouse');
+const BankAccount = require('../models/BankAccount');
+const { adjustBalance } = require('./bankAccountController');
 
 /**
  * Authoritative Product Price Resolver:
@@ -1447,10 +1449,24 @@ exports.recordSalesInvoicePayment = async (req, res) => {
       is_split_payment,
       split_cash,
       split_online,
+      bank_account_id,
+      bank_account_name,
     } = req.body;
 
     const invoice = await SalesInvoice.findById(id);
     if (!invoice) return res.status(404).json({ success: false, message: 'Sales Invoice not found' });
+
+    // Resolve Receiving Bank Account
+    let targetBank = null;
+    if (bank_account_id) {
+      targetBank = await BankAccount.findById(bank_account_id);
+    }
+    if (!targetBank) {
+      targetBank = await BankAccount.findOne({ is_default_receiving: true, is_deleted: false });
+    }
+    if (!targetBank) {
+      targetBank = await BankAccount.findOne({ is_deleted: false });
+    }
 
     let addedPayment = 0;
 
@@ -1505,12 +1521,18 @@ exports.recordSalesInvoicePayment = async (req, res) => {
     const dateStr = payment_date
       ? new Date(payment_date).toLocaleDateString('en-IN')
       : new Date().toLocaleDateString('en-IN');
+    const bankDesc = targetBank ? ` into ${targetBank.account_name}` : '';
     const paymentNote = `[Payment: ₹${addedPayment.toLocaleString('en-IN')} via ${
       payment_mode || 'Recorded'
-    } on ${dateStr}${reference_number ? ` Ref: ${reference_number}` : ''}]`;
+    }${bankDesc} on ${dateStr}${reference_number ? ` Ref: ${reference_number}` : ''}]`;
     invoice.notes = invoice.notes ? `${invoice.notes}\n${paymentNote}` : paymentNote;
 
     await invoice.save();
+
+    // Adjust Bank Account balance (Credit incoming payment to company bank account)
+    if (targetBank && addedPayment > 0) {
+      await adjustBalance(targetBank._id, addedPayment, 'credit');
+    }
 
     // Reduce customer's pending balance
     await Customer.findByIdAndUpdate(invoice.customer_id, {
@@ -1536,7 +1558,9 @@ exports.recordSalesInvoicePayment = async (req, res) => {
     try {
       const FinanceTransaction = require('../models/FinanceTransaction');
       const pMode = payment_mode || 'Cash';
-      const accName = pMode.toLowerCase().includes('cash')
+      const accName = targetBank
+        ? `${targetBank.account_name} (${targetBank.bank_name})`
+        : pMode.toLowerCase().includes('cash')
         ? 'Cash Drawer / Petty Cash'
         : 'Primary Bank Account (HDFC Bank - Current A/c #5020001)';
 
@@ -1549,6 +1573,7 @@ exports.recordSalesInvoicePayment = async (req, res) => {
         party_name: invoice.customer_id?.customer_name || 'Customer',
         party_type: 'customer',
         customer_id: invoice.customer_id?._id || invoice.customer_id,
+        bank_account_id: targetBank?._id,
         bill_id: invoice._id,
         bill_type: 'sales_invoice',
         bill_number: invoice.invoice_number,
@@ -1556,7 +1581,7 @@ exports.recordSalesInvoicePayment = async (req, res) => {
         payment_method: pMode.includes('UPI') ? 'UPI' : pMode.includes('Cash') ? 'Cash' : 'Bank Transfer',
         account_name: accName,
         reference_number: reference_number || invoice.invoice_number,
-        description: notes || `Payment received for Sales Invoice ${invoice.invoice_number}`,
+        description: notes || `Payment received into ${targetBank ? targetBank.account_name : 'Bank'} for Sales Invoice ${invoice.invoice_number}`,
         is_manual: false,
         status: 'confirmed',
         created_by: 'System (Sales Billing)',

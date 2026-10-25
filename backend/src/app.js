@@ -18,6 +18,8 @@ const marketingRoutes = require('./routes/marketingRoutes');
 const salesForecastRoutes = require('./routes/salesForecastRoutes');
 const capitalRoutes = require('./routes/capitalRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const targetGoalRoutes = require('./routes/targetGoalRoutes');
+const bankAccountRoutes = require('./routes/bankAccountRoutes');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
@@ -118,9 +120,24 @@ app.get(['/finance/capital', '/finance/drawings', '/capital', '/drawings', '/own
   res.redirect('http://localhost:3000/finance/capital');
 });
 
+// Target & Goal Management
+app.use('/api/v1/targets', targetGoalRoutes);
+app.use('/api/targets', targetGoalRoutes);
+app.use('/api/v1/goals', targetGoalRoutes);
+app.use('/api/goals', targetGoalRoutes);
+app.use('/api/v1/growth/targets', targetGoalRoutes);
+
 // Business Overview & CEO Dashboard
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+// Company Bank Accounts (Settings & Payments)
+app.use('/api/v1/bank-accounts', bankAccountRoutes);
+app.use('/api/bank-accounts', bankAccountRoutes);
+app.use('/api/v1/finance/bank-accounts', bankAccountRoutes);
+app.use('/api/finance/bank-accounts', bankAccountRoutes);
+app.use('/api/v1/settings/bank-accounts', bankAccountRoutes);
+app.use('/api/settings/bank-accounts', bankAccountRoutes);
 
 // 404 handler
 app.use((req, res) => {

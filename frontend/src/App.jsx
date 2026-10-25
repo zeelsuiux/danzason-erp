@@ -28,6 +28,7 @@ import RepeatOrderManagement from './pages/sales/RepeatOrderManagement';
 import ComplaintManagement from './pages/customerService/ComplaintManagement';
 import SalesForecasting from './pages/sales/SalesForecasting';
 import MarketingDashboard from './pages/marketing/MarketingDashboard';
+import TargetGoalManagement from './pages/growth/TargetGoalManagement';
 import CeoCommandCenter from './pages/dashboard/CeoCommandCenter';
 import ProductsList from './pages/products/ProductsList';
 import ProductStockLedger from './pages/products/ProductStockLedger';
@@ -140,6 +141,13 @@ export default function App() {
           <Route path="sales/forecast" element={<SalesForecasting />} />
           <Route path="forecasting" element={<SalesForecasting />} />
           <Route path="forecast" element={<SalesForecasting />} />
+
+          {/* Growth & Target Goal Management */}
+          <Route path="growth/targets" element={<TargetGoalManagement />} />
+          <Route path="targets" element={<TargetGoalManagement />} />
+          <Route path="goals" element={<TargetGoalManagement />} />
+          <Route path="target-goals" element={<TargetGoalManagement />} />
+          <Route path="sales/targets" element={<TargetGoalManagement />} />
 
           {/* Finance & Accounts Management */}
           <Route path="finance" element={<FinanceModule />} />
