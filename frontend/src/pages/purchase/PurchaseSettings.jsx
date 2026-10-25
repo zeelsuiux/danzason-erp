@@ -18,6 +18,9 @@ import {
   Power,
   Layers,
   Briefcase,
+  Crown,
+  GitFork,
+  ArrowRight,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -30,7 +33,7 @@ import teamService from '../../services/teamService';
 export default function PurchaseSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(urlTab === 'departments' ? 'departments' : 'categories'); // 'categories' | 'suppliers' | 'warehouses' | 'departments'
+  const [activeTab, setActiveTab] = useState(urlTab === 'departments' ? 'departments' : urlTab === 'hierarchy' ? 'hierarchy' : 'categories'); // 'categories' | 'suppliers' | 'warehouses' | 'departments' | 'hierarchy'
 
   // ======================== WAREHOUSES STATE ========================
   const [warehouses, setWarehouses] = useState([]);
@@ -131,12 +134,36 @@ export default function PurchaseSettings() {
     is_active: true,
   };
   const [deptFormData, setDeptFormData] = useState(initialDeptForm);
+  // ======================== HIERARCHY STATE ========================
+  const [hierarchies, setHierarchies] = useState([]);
+  const [hierLoading, setHierLoading] = useState(true);
+  const [hierSearch, setHierSearch] = useState('');
+  const [hierStatusFilter, setHierStatusFilter] = useState('all');
+  const [hierSupervisoryFilter, setHierSupervisoryFilter] = useState('all');
+  const [isHierModalOpen, setIsHierModalOpen] = useState(false);
+  const [editingHier, setEditingHier] = useState(null);
+  const [hierSaving, setHierSaving] = useState(false);
+  const [hierError, setHierError] = useState('');
+
+  const initialHierForm = {
+    name: '',
+    code: '',
+    rank: 3,
+    can_supervise: true,
+    requires_reporting: false,
+    badge_color: 'purple',
+    description: '',
+    is_active: true,
+  };
+  const [hierFormData, setHierFormData] = useState(initialHierForm);
+
 
   useEffect(() => {
     loadWarehouses();
     loadCategories();
     loadSuppliers();
     loadDepartments();
+    loadHierarchies();
   }, []);
 
   const loadSuppliers = async () => {
@@ -570,6 +597,222 @@ export default function PurchaseSettings() {
     return matchSearch && matchStatus;
   });
 
+
+  // ======================== HIERARCHY FUNCTIONS ========================
+  const loadHierarchies = async () => {
+    try {
+      setHierLoading(true);
+      setHierError('');
+      const res = await teamService.getHierarchyLevels({
+        search: hierSearch.trim() || undefined,
+        status: hierStatusFilter !== 'all' ? hierStatusFilter : undefined,
+        supervisory: hierSupervisoryFilter !== 'all' ? hierSupervisoryFilter : undefined,
+      });
+      const list = Array.isArray(res.data) ? res.data : [];
+      setHierarchies(list);
+    } catch (err) {
+      console.error('Failed to load hierarchy levels:', err);
+      setHierError(err.message || 'Failed to load organization hierarchy levels');
+    } finally {
+      setHierLoading(false);
+    }
+  };
+
+  const handleOpenAddHierarchy = () => {
+    setEditingHier(null);
+    setHierFormData(initialHierForm);
+    setHierError('');
+    setIsHierModalOpen(true);
+  };
+
+  const handleOpenEditHierarchy = (hier) => {
+    setEditingHier(hier);
+    setHierFormData({
+      name: hier.name || '',
+      code: hier.code || '',
+      rank: hier.rank || 3,
+      can_supervise: hier.can_supervise !== undefined ? hier.can_supervise : true,
+      requires_reporting: hier.requires_reporting !== undefined ? hier.requires_reporting : false,
+      badge_color: hier.badge_color || 'purple',
+      description: hier.description || '',
+      is_active: hier.is_active !== undefined ? hier.is_active : true,
+    });
+    setHierError('');
+    setIsHierModalOpen(true);
+  };
+
+  const handleSaveHierarchy = async (e) => {
+    e.preventDefault();
+    setHierSaving(true);
+    setHierError('');
+
+    try {
+      if (editingHier) {
+        await teamService.updateHierarchyLevel(editingHier._id, hierFormData);
+      } else {
+        await teamService.createHierarchyLevel(hierFormData);
+      }
+      setIsHierModalOpen(false);
+      loadHierarchies();
+    } catch (err) {
+      setHierError(err.message || 'Failed to save hierarchy level');
+    } finally {
+      setHierSaving(false);
+    }
+  };
+
+  const handleToggleHierStatus = async (hier) => {
+    try {
+      await teamService.updateHierarchyLevel(hier._id, { is_active: !hier.is_active });
+      loadHierarchies();
+    } catch (err) {
+      alert(err.message || 'Failed to update hierarchy level status');
+    }
+  };
+
+  const handleDeleteHierarchy = async (hier) => {
+    if (!window.confirm(`Are you sure you want to delete hierarchy level "${hier.name}"?`)) {
+      return;
+    }
+    try {
+      await teamService.deleteHierarchyLevel(hier._id);
+      loadHierarchies();
+    } catch (err) {
+      alert(err.message || 'Failed to delete hierarchy level');
+    }
+  };
+
+  const filteredHierarchies = hierarchies.filter((h) => {
+    const q = hierSearch.toLowerCase().trim();
+    const matchSearch =
+      !q ||
+      h.name?.toLowerCase().includes(q) ||
+      h.code?.toLowerCase().includes(q) ||
+      h.description?.toLowerCase().includes(q);
+
+    const matchStatus =
+      hierStatusFilter === 'all' ||
+      (hierStatusFilter === 'active' && h.is_active) ||
+      (hierStatusFilter === 'inactive' && !h.is_active);
+
+    const matchSupervisory =
+      hierSupervisoryFilter === 'all' ||
+      (hierSupervisoryFilter === 'senior' && h.can_supervise) ||
+      (hierSupervisoryFilter === 'junior' && h.requires_reporting);
+
+    return matchSearch && matchStatus && matchSupervisory;
+  });
+
+  const getHierBadgeClass = (color) => {
+    switch (color) {
+      case 'rose':
+        return 'bg-rose-100 text-rose-800 border-rose-200';
+      case 'amber':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'blue':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'purple':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'emerald':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'indigo':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      default:
+        return 'bg-slate-100 text-slate-800 border-slate-200';
+    }
+  };
+
+  const hierarchyColumns = [
+    {
+      header: 'Seniority Rank',
+      key: 'rank',
+      className: 'w-[120px]',
+      render: (_, h) => (
+        <div className="flex items-center gap-1.5 font-mono text-xs">
+          <span className="w-6 h-6 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700">
+            {h.rank}
+          </span>
+          <span className="text-[11px] text-slate-500 font-sans">
+            {h.rank === 1 ? 'Top Level' : h.rank <= 3 ? 'Senior' : 'Operational'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Hierarchy Level & Code',
+      key: 'name',
+      render: (_, h) => (
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-900 text-sm">{h.name}</span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              {h.code}
+            </span>
+            {h.is_system && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-500">
+                System
+              </span>
+            )}
+          </div>
+          {h.description && (
+            <p className="text-xs text-slate-500 line-clamp-1">{h.description}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Role Nature / Supervision',
+      key: 'can_supervise',
+      render: (_, h) => (
+        <div className="flex flex-wrap gap-1">
+          {h.can_supervise ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+              <Crown className="w-3 h-3 text-amber-600" /> Supervisory / Team Lead
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600">
+              Executive / Member
+            </span>
+          )}
+          {h.requires_reporting && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+              Reports to Supervisor
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Badge Style',
+      key: 'badge_color',
+      render: (_, h) => (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${getHierBadgeClass(h.badge_color)}`}>
+          {h.name}
+        </span>
+      ),
+    },
+    {
+      header: 'Staff Mapped',
+      key: 'member_count',
+      render: (_, h) => (
+        <span className="font-mono text-xs font-bold text-slate-700">
+          {h.member_count || 0} Staff
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      key: 'is_active',
+      render: (_, h) => (
+        <StatusBadge
+          status={h.is_active ? 'active' : 'inactive'}
+          type="status"
+          label={h.is_active ? 'Active' : 'Inactive'}
+        />
+      ),
+    },
+  ];
+
   const departmentColumns = [
     {
       header: 'Department Details',
@@ -911,6 +1154,22 @@ export default function PurchaseSettings() {
               {departments.length}
             </span>
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('hierarchy')}
+            className={`flex items-center gap-2 py-3 px-4 font-bold text-sm transition-all border-b-2 -mb-[1px] ${
+              activeTab === 'hierarchy'
+                ? 'border-brand text-brand bg-white rounded-t-lg shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Hierarchy & Org Levels</span>
+            <span className="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-700 font-mono font-bold">
+              {hierarchies.length}
+            </span>
+          </button>
+
         </div>
 
         {/* Tab 1: Centralized Warehouse Management */}
@@ -1445,6 +1704,151 @@ export default function PurchaseSettings() {
             />
           </div>
         )}
+        {/* Tab 5: Hierarchy & Organization Levels Management */}
+        {activeTab === 'hierarchy' && (
+          <div className="p-5 space-y-4">
+            {/* Quick Hierarchy Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-brand">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] text-slate-500 font-semibold uppercase block">Total Levels</span>
+                  <span className="text-lg font-bold font-mono text-slate-900">{hierarchies.length}</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white border border-emerald-200 flex items-center justify-center text-emerald-700">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] text-emerald-700 font-semibold uppercase block">Active Levels</span>
+                  <span className="text-lg font-bold font-mono text-emerald-800">
+                    {hierarchies.filter((h) => h.is_active).length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white border border-amber-200 flex items-center justify-center text-amber-700">
+                  <Crown className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] text-amber-700 font-semibold uppercase block">Supervisory Levels</span>
+                  <span className="text-lg font-bold font-mono text-amber-800">
+                    {hierarchies.filter((h) => h.can_supervise).length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white border border-purple-200 flex items-center justify-center text-purple-700">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] text-purple-700 font-semibold uppercase block">Staff Assigned</span>
+                  <span className="text-lg font-bold font-mono text-purple-800">
+                    {hierarchies.reduce((acc, h) => acc + (h.member_count || 0), 0)} Members
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Action Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="flex flex-wrap items-center gap-2 flex-1 max-w-xl">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={hierSearch}
+                    onChange={(e) => setHierSearch(e.target.value)}
+                    placeholder="Search hierarchy by level name, code..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 text-slate-800 outline-none focus:border-brand"
+                  />
+                </div>
+
+                <select
+                  value={hierSupervisoryFilter}
+                  onChange={(e) => setHierSupervisoryFilter(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 outline-none"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="senior">Supervisory / Team Lead</option>
+                  <option value="junior">Requires Reporting</option>
+                </select>
+
+                <select
+                  value={hierStatusFilter}
+                  onChange={(e) => setHierStatusFilter(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 text-slate-700 outline-none"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active Only</option>
+                  <option value="inactive">Inactive Only</option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenAddHierarchy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-brand text-white hover:bg-brand-600 shadow-sm transition"
+              >
+                <Plus className="w-4 h-4" /> Add Hierarchy Level
+              </button>
+            </div>
+
+            {/* Hierarchy Table */}
+            <DataTable
+              columns={hierarchyColumns}
+              data={filteredHierarchies}
+              loading={hierLoading}
+              emptyMessage="No hierarchy levels found matching criteria."
+              actions={(hier) => (
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleHierStatus(hier)}
+                    className={`p-1.5 rounded-lg transition ${
+                      hier.is_active
+                        ? 'text-emerald-600 hover:bg-emerald-50'
+                        : 'text-slate-400 hover:bg-slate-100'
+                    }`}
+                    title={hier.is_active ? 'Deactivate Level' : 'Activate Level'}
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditHierarchy(hier)}
+                    className="p-1.5 text-slate-500 hover:text-brand hover:bg-slate-100 rounded-lg transition"
+                    title="Edit Hierarchy Level"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteHierarchy(hier)}
+                    disabled={hier.is_system || hier.member_count > 0}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                    title={
+                      hier.is_system
+                        ? 'System hierarchy levels cannot be removed'
+                        : hier.member_count > 0
+                        ? `Cannot delete: ${hier.member_count} staff assigned`
+                        : 'Delete Hierarchy Level'
+                    }
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+        )}
+
       </div>
 
       {/* ADD / EDIT WAREHOUSE MODAL */}
@@ -2093,6 +2497,181 @@ export default function PurchaseSettings() {
           </div>
         </form>
       </Modal>
+      {/* ======================== MODAL: ADD / EDIT HIERARCHY LEVEL ======================== */}
+      <Modal
+        isOpen={isHierModalOpen}
+        onClose={() => setIsHierModalOpen(false)}
+        title={editingHier ? `Edit Hierarchy Level: ${editingHier.name}` : 'Add New Hierarchy Level'}
+        subtitle="Configure organizational seniority ranks, supervision capabilities, and visual badges used across Team Management."
+        size="md"
+      >
+        <form onSubmit={handleSaveHierarchy} className="space-y-4 text-xs font-sans text-slate-800">
+          {hierError && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{hierError}</span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Hierarchy Level Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={hierFormData.name}
+                onChange={(e) => setHierFormData({ ...hierFormData, name: e.target.value })}
+                placeholder="e.g. Senior Team Lead / Assistant Manager"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Code (Unique) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={hierFormData.code}
+                  onChange={(e) => setHierFormData({ ...hierFormData, code: e.target.value.toUpperCase() })}
+                  placeholder="e.g. SR_LEAD"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono uppercase focus:border-brand outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Seniority Rank (1-10) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  required
+                  value={hierFormData.rank}
+                  onChange={(e) => setHierFormData({ ...hierFormData, rank: parseInt(e.target.value, 10) || 1 })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">1 = Highest / Executive, 5 = Junior</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="hier_can_supervise"
+                    checked={hierFormData.can_supervise}
+                    onChange={(e) => setHierFormData({ ...hierFormData, can_supervise: e.target.checked })}
+                    className="w-4 h-4 text-brand rounded border-slate-300 focus:ring-brand cursor-pointer"
+                  />
+                  <label htmlFor="hier_can_supervise" className="font-bold text-slate-800 cursor-pointer">
+                    Can Supervise (Team Lead)
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Staff at this level can be chosen as a "Reports To" supervisor for junior members.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="hier_requires_reporting"
+                    checked={hierFormData.requires_reporting}
+                    onChange={(e) => setHierFormData({ ...hierFormData, requires_reporting: e.target.checked })}
+                    className="w-4 h-4 text-brand rounded border-slate-300 focus:ring-brand cursor-pointer"
+                  />
+                  <label htmlFor="hier_requires_reporting" className="font-bold text-slate-800 cursor-pointer">
+                    Requires Reporting
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Staff at this level must select a supervisor in the Team Member form.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Badge Color Theme</label>
+              <div className="flex items-center gap-2">
+                {[
+                  { id: 'purple', name: 'Purple', bg: 'bg-purple-100 text-purple-800 border-purple-300' },
+                  { id: 'blue', name: 'Blue', bg: 'bg-blue-100 text-blue-800 border-blue-300' },
+                  { id: 'amber', name: 'Amber', bg: 'bg-amber-100 text-amber-800 border-amber-300' },
+                  { id: 'rose', name: 'Rose', bg: 'bg-rose-100 text-rose-800 border-rose-300' },
+                  { id: 'emerald', name: 'Emerald', bg: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+                  { id: 'slate', name: 'Slate', bg: 'bg-slate-100 text-slate-800 border-slate-300' },
+                ].map((color) => (
+                  <button
+                    key={color.id}
+                    type="button"
+                    onClick={() => setHierFormData({ ...hierFormData, badge_color: color.id })}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${color.bg} ${
+                      hierFormData.badge_color === color.id
+                        ? 'ring-2 ring-brand ring-offset-1 shadow-xs'
+                        : 'opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    {color.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Description / Scope</label>
+              <textarea
+                rows={2}
+                value={hierFormData.description}
+                onChange={(e) => setHierFormData({ ...hierFormData, description: e.target.value })}
+                placeholder="Briefly describe responsibilities, supervisory authority or scope..."
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="hier_is_active"
+                checked={hierFormData.is_active}
+                onChange={(e) => setHierFormData({ ...hierFormData, is_active: e.target.checked })}
+                className="w-4 h-4 text-brand rounded border-slate-300 focus:ring-brand cursor-pointer"
+              />
+              <label htmlFor="hier_is_active" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                Active Level (available in Team Member hierarchy dropdowns across the ERP)
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsHierModalOpen(false)}
+              className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={hierSaving}
+              className="px-4 py-2 rounded-lg bg-brand text-white font-bold hover:bg-brand-600 disabled:opacity-50 transition flex items-center gap-2"
+            >
+              {hierSaving && (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {editingHier ? 'Update Hierarchy Level' : 'Save Hierarchy Level'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
     </div>
   );
 }

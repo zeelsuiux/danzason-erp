@@ -29,6 +29,7 @@ import {
   ChevronRight,
   Lock,
   FileText,
+  Warehouse,
 } from 'lucide-react';
 import Modal from '../../components/common/Modal';
 import { productApi, ft } from '../../services/procurementService';
@@ -42,6 +43,7 @@ export default function ProductsList() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [colorFilter, setColorFilter] = useState('');
+  const [sizeFilter, setSizeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewMode, setViewMode] = useState('color'); // 'color' (Color-wise) or 'style' (Grouped)
   const [expandedRows, setExpandedRows] = useState({});
@@ -93,13 +95,15 @@ export default function ProductsList() {
     { name: 'Coral Peach', hex: '#fb923c' },
   ];
 
+  const standardSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'Free Size'];
+
   useEffect(() => {
     loadCategories();
   }, []);
 
   useEffect(() => {
     loadProducts(pagination.page);
-  }, [pagination.page, search, categoryFilter, typeFilter, colorFilter, statusFilter, viewMode]);
+  }, [pagination.page, search, categoryFilter, typeFilter, colorFilter, sizeFilter, statusFilter, viewMode]);
 
   const loadCategories = async () => {
     try {
@@ -141,6 +145,7 @@ export default function ProductsList() {
         category: categoryFilter || undefined,
         types: typeFilter || undefined,
         color: colorFilter || undefined,
+        size: sizeFilter || undefined,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         view: viewMode,
       };
@@ -307,6 +312,27 @@ export default function ProductsList() {
             ))}
           </select>
 
+          {/* Size Filter Dropdown */}
+          <select
+            value={sizeFilter}
+            onChange={(e) => {
+              setSizeFilter(e.target.value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            className={`px-3.5 py-2 rounded-xl border text-xs font-medium focus:outline-hidden transition ${
+              sizeFilter
+                ? 'border-emerald-500 bg-emerald-50/50 text-emerald-800 font-bold'
+                : 'border-slate-200 bg-white text-slate-700'
+            }`}
+          >
+            <option value="">All Sizes</option>
+            {standardSizes.map((sz) => (
+              <option key={sz} value={sz}>
+                Size {sz}
+              </option>
+            ))}
+          </select>
+
           {/* Types dropdown */}
           <select
             value={typeFilter}
@@ -338,6 +364,119 @@ export default function ProductsList() {
           </select>
         </div>
       </div>
+
+      {/* Active Filters Pill Bar */}
+      {(categoryFilter || colorFilter || sizeFilter || typeFilter || statusFilter !== 'all' || search) && (
+        <div className="flex items-center gap-2 flex-wrap text-xs px-1">
+          <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider">Active Filters:</span>
+          {sizeFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs shadow-2xs">
+              Size: {sizeFilter}
+              <button
+                type="button"
+                onClick={() => {
+                  setSizeFilter('');
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="hover:text-emerald-950 font-black ml-0.5"
+                title="Remove size filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {categoryFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs">
+              Category: {categoryFilter}
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('');
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="hover:text-slate-900 font-black ml-0.5"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {colorFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs">
+              Color: {colorFilter}
+              <button
+                type="button"
+                onClick={() => {
+                  setColorFilter('');
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="hover:text-slate-900 font-black ml-0.5"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {typeFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs">
+              Type: {typeFilter}
+              <button
+                type="button"
+                onClick={() => {
+                  setTypeFilter('');
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="hover:text-slate-900 font-black ml-0.5"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {statusFilter !== 'all' && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs">
+              Status: {statusFilter}
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('all');
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="hover:text-slate-900 font-black ml-0.5"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {search && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs">
+              Search: "{search}"
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="hover:text-slate-900 font-black ml-0.5"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('');
+              setColorFilter('');
+              setSizeFilter('');
+              setTypeFilter('');
+              setStatusFilter('all');
+              setSearch('');
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
+            className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline ml-1"
+          >
+            Clear All
+          </button>
+        </div>
+      )}
 
       {/* Table matching user's screenshot exactly with color-wise & style support */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
@@ -524,9 +663,29 @@ export default function ProductsList() {
                                 />
                                 <span className="font-bold text-slate-800 text-xs">{row.color}</span>
                               </div>
-                              <p className="text-[10px] text-slate-400">
-                                Sizes: <span className="font-mono text-slate-600 font-semibold">{(row.sizes || ['S', 'M', 'L', 'XL', '2XL']).join(', ')}</span>
-                              </p>
+                              <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                <span className="text-[10px] text-slate-400 mr-0.5">Sizes:</span>
+                                {(row.sizes || ['S', 'M', 'L', 'XL', '2XL']).map((sz) => {
+                                  const isSelected = sizeFilter && sz.toLowerCase() === sizeFilter.toLowerCase();
+                                  return (
+                                    <span
+                                      key={sz}
+                                      onClick={() => {
+                                        setSizeFilter(isSelected ? '' : sz);
+                                        setPagination((prev) => ({ ...prev, page: 1 }));
+                                      }}
+                                      className={`px-1.5 py-0.2 rounded text-[10px] font-mono cursor-pointer transition ${
+                                        isSelected
+                                          ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                      }`}
+                                      title={isSelected ? 'Clear size filter' : `Filter by size ${sz}`}
+                                    >
+                                      {sz}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             </div>
                           ) : (
                             <div className="space-y-1.5">
@@ -576,6 +735,20 @@ export default function ProductsList() {
                             {row.current_stock ?? 50}
                           </span>
                           <span className="text-[10px] text-slate-400 ml-1">PCS</span>
+                          {viewMode === 'color' && (
+                            <button
+                              type="button"
+                              onClick={(e) => toggleRowExpansion(rowId, e)}
+                              className={`block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded transition ${
+                                isExpanded
+                                  ? 'bg-emerald-600 text-white shadow-2xs'
+                                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60'
+                              }`}
+                              title={isExpanded ? 'Hide Size & Warehouse Breakdown' : 'Show Size & Warehouse Breakdown'}
+                            >
+                              {isExpanded ? 'Hide Sizes' : 'Sizes & WH'}
+                            </button>
+                          )}
                         </td>
 
                         {/* Status */}
@@ -625,6 +798,100 @@ export default function ProductsList() {
                           </div>
                         </td>
                       </tr>
+
+                      {/* Expandable Size-Wise & Warehouse Breakdown in Color View */}
+                      {viewMode === 'color' && isExpanded && (
+                        <tr className="bg-emerald-50/20 border-y border-emerald-100">
+                          <td colSpan={9} className="p-3 pl-8 pr-6">
+                            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                                <div className="flex items-center gap-2">
+                                  <Warehouse className="w-4 h-4 text-emerald-600" />
+                                  <span className="text-xs font-bold text-slate-800">
+                                    Size & Warehouse Stock Breakdown — {row.product_name}
+                                  </span>
+                                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                    Total: {row.current_stock ?? 50} PCS
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-mono text-slate-400 font-semibold">
+                                  SKU: {row.sku || row.sku_id}
+                                </span>
+                              </div>
+
+                              {/* Warehouse Size Breakdown Table */}
+                              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                                    <tr>
+                                      <th className="py-2 px-3">Warehouse Location</th>
+                                      <th className="py-2 px-3 text-center w-14">Size S</th>
+                                      <th className="py-2 px-3 text-center w-14">Size M</th>
+                                      <th className="py-2 px-3 text-center w-14">Size L</th>
+                                      <th className="py-2 px-3 text-center w-14">Size XL</th>
+                                      <th className="py-2 px-3 text-center w-14">Size 2XL</th>
+                                      <th className="py-2 px-3 text-right w-20">Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {(row.warehouse_stock || []).map((wh, wIdx) => (
+                                      <tr key={wIdx} className="hover:bg-slate-50/60 transition">
+                                        <td className="py-2 px-3 font-medium text-slate-800">
+                                          <div className="font-semibold text-xs">{wh.warehouse_name}</div>
+                                          <div className="font-mono text-[10px] text-slate-400">{wh.warehouse_code}</div>
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-700 bg-slate-50/50">
+                                          {wh.sizes?.S ?? 0}
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-700 bg-emerald-50/30">
+                                          {wh.sizes?.M ?? 0}
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-700 bg-emerald-50/30">
+                                          {wh.sizes?.L ?? 0}
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-700 bg-slate-50/50">
+                                          {wh.sizes?.XL ?? 0}
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-mono font-bold text-slate-700">
+                                          {wh.sizes?.['2XL'] ?? 0}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-mono font-extrabold text-slate-900">
+                                          {wh.total ?? 0} PCS
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot className="bg-slate-100/70 font-bold border-t border-slate-200 text-[11px] text-slate-800">
+                                    <tr>
+                                      <td className="py-2 px-3 uppercase tracking-wider text-[10px] font-bold text-slate-600">
+                                        Color Totals Across Warehouses:
+                                      </td>
+                                      <td className="py-2 px-3 text-center font-mono font-black text-slate-900">
+                                        {row.size_stock?.S ?? 0}
+                                      </td>
+                                      <td className="py-2 px-3 text-center font-mono font-black text-emerald-800 bg-emerald-100/50">
+                                        {row.size_stock?.M ?? 0}
+                                      </td>
+                                      <td className="py-2 px-3 text-center font-mono font-black text-emerald-800 bg-emerald-100/50">
+                                        {row.size_stock?.L ?? 0}
+                                      </td>
+                                      <td className="py-2 px-3 text-center font-mono font-black text-slate-900">
+                                        {row.size_stock?.XL ?? 0}
+                                      </td>
+                                      <td className="py-2 px-3 text-center font-mono font-black text-slate-900">
+                                        {row.size_stock?.['2XL'] ?? 0}
+                                      </td>
+                                      <td className="py-2 px-3 text-right font-mono font-black text-emerald-700">
+                                        {row.current_stock ?? 50} PCS
+                                      </td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
 
                       {/* Expandable Color Variants Row in Style View */}
                       {viewMode === 'style' && isExpanded && (
@@ -681,6 +948,13 @@ export default function ProductsList() {
                                           <p className="text-[10px] text-emerald-600 font-mono font-medium">
                                             {cSku}
                                           </p>
+                                          <div className="flex items-center gap-1 text-[9px] font-mono mt-1 text-slate-500 flex-wrap">
+                                            <span className="bg-slate-200/60 px-1 py-0.2 rounded font-bold text-slate-700">S:{v.size_stock?.S ?? 11}</span>
+                                            <span className="bg-emerald-100/70 px-1 py-0.2 rounded font-bold text-emerald-800">M:{v.size_stock?.M ?? 23}</span>
+                                            <span className="bg-emerald-100/70 px-1 py-0.2 rounded font-bold text-emerald-800">L:{v.size_stock?.L ?? 23}</span>
+                                            <span className="bg-slate-200/60 px-1 py-0.2 rounded font-bold text-slate-700">XL:{v.size_stock?.XL ?? 11}</span>
+                                            <span className="bg-slate-200/60 px-1 py-0.2 rounded font-bold text-slate-700">2XL:{v.size_stock?.['2XL'] ?? 8}</span>
+                                          </div>
                                         </div>
                                       </div>
                                       <div className="text-right">
@@ -891,6 +1165,62 @@ export default function ProductsList() {
                       {c.name}
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Size & Warehouse Stock Matrix */}
+            {selectedProduct.warehouse_stock && selectedProduct.warehouse_stock.length > 0 && (
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                    <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Warehouse & Size Inventory Matrix</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-medium">Stock by Depot</span>
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="py-1.5 px-2.5">Warehouse</th>
+                        <th className="py-1.5 px-2 text-center">S</th>
+                        <th className="py-1.5 px-2 text-center">M</th>
+                        <th className="py-1.5 px-2 text-center">L</th>
+                        <th className="py-1.5 px-2 text-center">XL</th>
+                        <th className="py-1.5 px-2 text-center">2XL</th>
+                        <th className="py-1.5 px-2.5 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedProduct.warehouse_stock.map((wh, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="py-1.5 px-2.5 font-medium text-slate-800 truncate max-w-[130px]">
+                            {wh.warehouse_name}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700 bg-slate-50/40">
+                            {wh.sizes?.S ?? 0}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700 bg-emerald-50/20">
+                            {wh.sizes?.M ?? 0}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700 bg-emerald-50/20">
+                            {wh.sizes?.L ?? 0}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700 bg-slate-50/40">
+                            {wh.sizes?.XL ?? 0}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700">
+                            {wh.sizes?.['2XL'] ?? 0}
+                          </td>
+                          <td className="py-1.5 px-2.5 text-right font-mono font-extrabold text-slate-900">
+                            {wh.total ?? 0} PCS
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

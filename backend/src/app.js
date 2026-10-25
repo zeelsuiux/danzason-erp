@@ -80,8 +80,11 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ success: false, message: 'Invalid JSON payload received.' });
+  }
   console.error('Unhandled Server Error:', err);
-  res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
+  res.status(err.status || 500).json({ success: false, message: err.message || 'Internal Server Error' });
 });
 
 module.exports = app;

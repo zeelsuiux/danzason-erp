@@ -47,8 +47,14 @@ const teamMemberSchema = new mongoose.Schema(
     },
     level: {
       type: String,
-      enum: ['senior', 'junior', 'lead', 'manager', 'director'],
+      required: true,
+      trim: true,
       default: 'junior',
+    },
+    hierarchy_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'HierarchyLevel',
+      default: null,
     },
     reports_to: {
       type: mongoose.Schema.Types.ObjectId,

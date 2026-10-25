@@ -27,6 +27,12 @@ export const teamService = {
   updateDepartment: (id, data) => api.put(`/team/departments/${id}`, data),
   deleteDepartment: (id) => api.delete(`/team/departments/${id}`),
 
+  // Hierarchy Levels Master CRUD (Managed from Settings)
+  getHierarchyLevels: (params) => api.get('/team/hierarchy', { params }),
+  createHierarchyLevel: (data) => api.post('/team/hierarchy', data),
+  updateHierarchyLevel: (id, data) => api.put(`/team/hierarchy/${id}`, data),
+  deleteHierarchyLevel: (id) => api.delete(`/team/hierarchy/${id}`),
+
   // Performance Reports
   getPerformanceReport: (params) => api.get('/team/performance', { params }),
 

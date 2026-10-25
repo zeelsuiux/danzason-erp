@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const app = require('./app');
 const connectDB = require('./config/db');
 const seedAllData = require('./seed/seedData');
@@ -10,6 +11,8 @@ async function startServer() {
     await connectDB();
     try {
       await seedAllData();
+      const { ensureDefaultAdmin } = require('./controllers/authController');
+      await ensureDefaultAdmin();
     } catch (seedErr) {
       console.warn('⚠️ Seeding skipped or error:', seedErr.message);
     }

@@ -195,15 +195,25 @@ export default function TeamManagement() {
     }
   };
 
-  // Senior Members list (available for Junior "Reports To" selection)
+  // Senior Members list (available for Junior "Reports To" selection based on dynamic Hierarchy Master)
   const seniorMembersList = useMemo(() => {
-    return members.filter(
-      (m) => m.level === 'senior' || m.level === 'manager' || m.level === 'director'
+    const supervisoryLevels = new Set(
+      (masters.levels || [])
+        .filter((l) => l.can_supervise)
+        .map((l) => String(l.id).toLowerCase())
     );
-  }, [members]);
+    if (supervisoryLevels.size === 0) {
+      supervisoryLevels.add('director').add('manager').add('senior').add('lead');
+    }
+    return members.filter((m) => {
+      const mLevel = String(m.level || '').toLowerCase();
+      return supervisoryLevels.has(mLevel);
+    });
+  }, [members, masters.levels]);
 
   // ======================== HANDLERS ========================
   const handleOpenAdd = () => {
+    loadMasters();
     if (members.length === 0) loadMembers();
 
     setFormData({
@@ -216,6 +226,7 @@ export default function TeamManagement() {
   };
 
   const handleOpenEdit = (member) => {
+    loadMasters();
     if (members.length === 0) loadMembers();
     setSelectedMember(member);
     setFormData({
@@ -456,25 +467,42 @@ export default function TeamManagement() {
     document.body.removeChild(link);
   };
 
-  // Helper Badge for Senior / Junior
-  const getLevelBadge = (level) => {
-    switch (level) {
-      case 'senior':
-      case 'manager':
-      case 'director':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-            <Crown className="w-3 h-3 text-purple-600" /> Senior / Manager
-          </span>
-        );
-      case 'junior':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
-            Junior Executive
-          </span>
-        );
+  // Helper Badge for Hierarchy Level (Dynamic from Settings)
+  const getLevelBadge = (levelCode) => {
+    const lvl = (masters.levels || []).find(
+      (l) => String(l.id).toLowerCase() === String(levelCode || '').toLowerCase()
+    );
+
+    if (lvl) {
+      const colorMap = {
+        rose: 'bg-rose-50 text-rose-800 border-rose-200',
+        amber: 'bg-amber-50 text-amber-800 border-amber-200',
+        blue: 'bg-blue-50 text-blue-800 border-blue-200',
+        purple: 'bg-purple-50 text-purple-800 border-purple-200',
+        emerald: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        indigo: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+        slate: 'bg-slate-50 text-slate-700 border-slate-200',
+      };
+      const badgeClass = colorMap[lvl.badge_color] || 'bg-purple-50 text-purple-700 border-purple-200';
+
+      return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}>
+          {lvl.can_supervise && <Crown className="w-3 h-3 text-amber-600" />}
+          {lvl.label}
+        </span>
+      );
     }
+
+    // Fallback for legacy values
+    const isSenior = ['senior', 'manager', 'director'].includes(String(levelCode).toLowerCase());
+    return (
+      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+        isSenior ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'
+      }`}>
+        {isSenior && <Crown className="w-3 h-3 text-purple-600" />}
+        {levelCode || 'Junior'}
+      </span>
+    );
   };
 
   // Helper Count of Active Permissions
@@ -1848,13 +1876,13 @@ export default function TeamManagement() {
               </select>
 
               <select
-                value={filters.level}
+                value={String(filters.level || 'all').toLowerCase()}
                 onChange={(e) => setFilters({ ...filters, level: e.target.value })}
                 className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 outline-none"
               >
                 <option value="all">All Levels</option>
-                {masters.levels.map((l) => (
-                  <option key={l.id} value={l.id}>{l.label}</option>
+                {(masters.levels || []).map((l) => (
+                  <option key={l.id} value={l.id}>{l.label || l.name}</option>
                 ))}
               </select>
 
@@ -2078,41 +2106,75 @@ export default function TeamManagement() {
               </select>
             </div>
 
-            {/* Senior / Junior Level Selection */}
+            {/* Dynamic Hierarchy Level Selection (Populated from Settings) */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Hierarchy Level (Senior/Junior)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">Hierarchy Level</label>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href="/purchase/settings?tab=hierarchy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-slate-500 hover:text-brand flex items-center gap-0.5"
+                    title="Manage all hierarchy levels in Settings"
+                  >
+                    Settings <ArrowRight className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
               <select
-                value={formData.level}
+                value={String(formData.level || '').toLowerCase()}
                 onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 outline-none focus:border-brand font-bold text-purple-700"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 outline-none focus:border-brand font-bold text-purple-700 bg-white"
               >
-                <option value="junior">Junior Executive (Reports to Senior)</option>
-                <option value="senior">Senior Executive / Lead (Leads Team)</option>
-                <option value="manager">Department Manager (Department Head)</option>
-                <option value="director">Director / Management</option>
+                {(masters.levels && masters.levels.length > 0 ? masters.levels : [
+                  { id: 'director', label: 'Director / Management' },
+                  { id: 'manager', label: 'Department Manager' },
+                  { id: 'senior', label: 'Senior Executive' },
+                  { id: 'junior', label: 'Junior Executive' },
+                  { id: 'trainee', label: 'Trainee / Associate' },
+                ]).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label || l.name}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Reports To (Only if junior) */}
-            {formData.level === 'junior' && (
-              <div className="sm:col-span-2 p-3 rounded-xl bg-purple-50/60 border border-purple-200">
-                <label className="block text-xs font-bold text-purple-900 mb-1">
-                  Reports To (Senior Manager / Supervisor)
-                </label>
-                <select
-                  value={formData.reports_to}
-                  onChange={(e) => setFormData({ ...formData, reports_to: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 outline-none focus:border-brand bg-white"
-                >
-                  <option value="">None / Top Management</option>
-                  {seniorMembersList.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name} ({s.designation} - {s.department})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Reports To (Dynamically shown if level requires reporting or is non-supervisory) */}
+            {(() => {
+              const selectedLvl = (masters.levels || []).find(
+                (l) => String(l.id).toLowerCase() === String(formData.level || '').toLowerCase()
+              );
+              const needsReporting = selectedLvl
+                ? (selectedLvl.requires_reporting || !selectedLvl.can_supervise)
+                : (String(formData.level).toLowerCase() === 'junior' || String(formData.level).toLowerCase() === 'trainee');
+
+              return needsReporting ? (
+                <div className="sm:col-span-2 p-3 rounded-xl bg-purple-50/60 border border-purple-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-purple-900">
+                      Reports To (Senior Manager / Supervisor)
+                    </label>
+                    <span className="text-[10px] text-purple-600 font-medium">
+                      {seniorMembersList.length} Supervisors Available
+                    </span>
+                  </div>
+                  <select
+                    value={formData.reports_to}
+                    onChange={(e) => setFormData({ ...formData, reports_to: e.target.value })}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 outline-none focus:border-brand bg-white font-medium"
+                  >
+                    <option value="">None / Top Management</option>
+                    {seniorMembersList.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.name} ({s.designation} - {s.department})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null;
+            })()}
           </div>
 
           {/* Role Template Selector */}

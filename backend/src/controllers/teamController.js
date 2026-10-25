@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const TeamMember = require('../models/TeamMember');
 const Department = require('../models/Department');
+const HierarchyLevel = require('../models/HierarchyLevel');
 const Lead = require('../models/Lead');
 const SalesInvoice = require('../models/SalesInvoice');
 const SalesOrder = require('../models/SalesOrder');
@@ -31,6 +32,49 @@ async function ensureDefaultDepartments() {
     }
   } catch (err) {
     console.error('ensureDefaultDepartments Error:', err.message);
+  }
+}
+
+// ==============================================================================
+// DEFAULT HIERARCHY LEVELS SEEDING HELPER
+// ==============================================================================
+const DEFAULT_HIERARCHY_LEVELS = [
+  { name: 'Director / Management', code: 'director', rank: 1, can_supervise: true, requires_reporting: false, badge_color: 'rose', description: 'Executive board, owners and managing directors', is_system: true },
+  { name: 'Department Manager', code: 'manager', rank: 2, can_supervise: true, requires_reporting: false, badge_color: 'amber', description: 'Department heads supervising departmental operations', is_system: true },
+  { name: 'Senior Executive / Lead', code: 'senior', rank: 3, can_supervise: true, requires_reporting: false, badge_color: 'blue', description: 'Senior staff and team leads driving execution', is_system: true },
+  { name: 'Junior Executive', code: 'junior', rank: 4, can_supervise: false, requires_reporting: true, badge_color: 'purple', description: 'Front-line operational executives', is_system: true },
+  { name: 'Trainee / Associate', code: 'trainee', rank: 5, can_supervise: false, requires_reporting: true, badge_color: 'slate', description: 'Probationary staff and interns', is_system: true },
+];
+
+async function ensureDefaultHierarchyLevels() {
+  try {
+    const count = await HierarchyLevel.countDocuments({ is_deleted: false });
+    if (count === 0) {
+      for (const h of DEFAULT_HIERARCHY_LEVELS) {
+        await HierarchyLevel.create(h);
+      }
+    } else {
+      // Normalize any uppercase codes to lowercase for consistent dropdown matching
+      const allLevels = await HierarchyLevel.find({ is_deleted: false });
+      for (const lvl of allLevels) {
+        let changed = false;
+        if (lvl.code !== lvl.code.toLowerCase()) {
+          lvl.code = lvl.code.toLowerCase();
+          changed = true;
+        }
+        const def = DEFAULT_HIERARCHY_LEVELS.find((d) => d.code === lvl.code || d.name === lvl.name);
+        if (def) {
+          if (lvl.can_supervise === undefined) { lvl.can_supervise = def.can_supervise; changed = true; }
+          if (lvl.requires_reporting === undefined) { lvl.requires_reporting = def.requires_reporting; changed = true; }
+          if (!lvl.badge_color) { lvl.badge_color = def.badge_color; changed = true; }
+        }
+        if (changed) {
+          await lvl.save();
+        }
+      }
+    }
+  } catch (err) {
+    console.error('ensureDefaultHierarchyLevels Error:', err.message);
   }
 }
 
@@ -127,10 +171,24 @@ const ROLE_TEMPLATES = {
 exports.getRolesMasters = async (req, res) => {
   try {
     await ensureDefaultDepartments();
+    await ensureDefaultHierarchyLevels();
 
     // Fetch dynamic departments
     const depts = await Department.find({ is_deleted: false, is_active: true }).sort({ name: 1 });
     const departmentNames = depts.map((d) => d.name);
+
+    // Fetch dynamic hierarchy levels sorted by seniority rank
+    const hierarchyLevels = await HierarchyLevel.find({ is_deleted: false, is_active: true }).sort({ rank: 1, name: 1 });
+    const formattedLevels = hierarchyLevels.map((h) => ({
+      id: (h.code || '').toLowerCase(),
+      label: h.name,
+      name: h.name,
+      rank: h.rank,
+      can_supervise: Boolean(h.can_supervise),
+      requires_reporting: Boolean(h.requires_reporting),
+      badge_color: h.badge_color,
+      _id: h._id,
+    }));
 
     res.json({
       success: true,
@@ -138,12 +196,13 @@ exports.getRolesMasters = async (req, res) => {
         roleTemplates: ROLE_TEMPLATES,
         departments: departmentNames.length > 0 ? departmentNames : DEFAULT_DEPARTMENTS.map((d) => d.name),
         departmentObjects: depts,
-        levels: [
-          { id: 'director', label: 'Director / Management' },
-          { id: 'manager', label: 'Department Manager' },
-          { id: 'senior', label: 'Senior Executive' },
-          { id: 'junior', label: 'Junior Executive' },
+        levels: formattedLevels.length > 0 ? formattedLevels : [
+          { id: 'director', label: 'Director / Management', rank: 1, can_supervise: true, requires_reporting: false, badge_color: 'rose' },
+          { id: 'manager', label: 'Department Manager', rank: 2, can_supervise: true, requires_reporting: false, badge_color: 'amber' },
+          { id: 'senior', label: 'Senior Executive', rank: 3, can_supervise: true, requires_reporting: false, badge_color: 'blue' },
+          { id: 'junior', label: 'Junior Executive', rank: 4, can_supervise: false, requires_reporting: true, badge_color: 'purple' },
         ],
+        hierarchyLevels,
         modules: [
           { id: 'leads', label: 'Leads & Follow-ups' },
           { id: 'sales', label: 'Sales & Invoices' },
@@ -360,6 +419,234 @@ exports.deleteDepartment = async (req, res) => {
 };
 
 // ==============================================================================
+// 1C. HIERARCHY MASTER CRUD (MANAGED FROM SETTINGS)
+// ==============================================================================
+exports.getHierarchyLevels = async (req, res) => {
+  try {
+    await ensureDefaultHierarchyLevels();
+
+    const { search, status = 'all', supervisory = 'all' } = req.query;
+    const query = { is_deleted: false };
+
+    if (status && status !== 'all') {
+      query.is_active = status === 'active';
+    }
+
+    if (supervisory === 'senior') {
+      query.can_supervise = true;
+    } else if (supervisory === 'junior') {
+      query.requires_reporting = true;
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      query.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { code: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+      ];
+    }
+
+    const levels = await HierarchyLevel.find(query).sort({ rank: 1, name: 1 }).lean();
+
+    // Attach staff count to each hierarchy level
+    const levelsWithCount = await Promise.all(
+      levels.map(async (lvl) => {
+        const memberCount = await TeamMember.countDocuments({
+          $or: [
+            { level: lvl.code },
+            { level: lvl.code.toLowerCase() },
+            { level: lvl.code.toUpperCase() },
+            { hierarchy_id: lvl._id },
+          ],
+          is_deleted: false,
+        });
+        return {
+          ...lvl,
+          member_count: memberCount,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: levelsWithCount,
+    });
+  } catch (err) {
+    console.error('getHierarchyLevels Error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.createHierarchyLevel = async (req, res) => {
+  try {
+    const { name, code, rank, can_supervise, requires_reporting, badge_color, description, is_active } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Hierarchy Level Name is required.' });
+    }
+
+    const trimmedName = name.trim();
+    const cleanCode = (code || trimmedName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().slice(0, 16)).trim().toLowerCase();
+
+    // Check duplicate name or code
+    const existing = await HierarchyLevel.findOne({
+      is_deleted: false,
+      $or: [
+        { name: { $regex: new RegExp(`^${trimmedName}$`, 'i') } },
+        { code: cleanCode },
+      ],
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: `A hierarchy level with name "${trimmedName}" or code "${cleanCode}" already exists.`,
+      });
+    }
+
+    const level = new HierarchyLevel({
+      name: trimmedName,
+      code: cleanCode,
+      rank: Number(rank) || 3,
+      can_supervise: Boolean(can_supervise),
+      requires_reporting: Boolean(requires_reporting),
+      badge_color: badge_color || 'purple',
+      description: (description || '').trim(),
+      is_active: is_active !== undefined ? is_active : true,
+      is_system: false,
+    });
+
+    await level.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Hierarchy level "${level.name}" created successfully.`,
+      data: level,
+    });
+  } catch (err) {
+    console.error('createHierarchyLevel Error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.updateHierarchyLevel = async (req, res) => {
+  try {
+    const targetId = req.params.id || req.body._id || req.body.id || req.query.id;
+    if (!targetId) {
+      return res.status(400).json({ success: false, message: 'Hierarchy level ID is required for update.' });
+    }
+    const level = await HierarchyLevel.findOne({ _id: targetId, is_deleted: false });
+    if (!level) {
+      return res.status(404).json({ success: false, message: 'Hierarchy level not found.' });
+    }
+
+    const { name, code, rank, can_supervise, requires_reporting, badge_color, description, is_active } = req.body;
+    const oldCode = level.code;
+
+    if (name && name.trim()) {
+      const trimmedName = name.trim();
+      const duplicate = await HierarchyLevel.findOne({
+        _id: { $ne: level._id },
+        name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+        is_deleted: false,
+      });
+      if (duplicate) {
+        return res.status(400).json({
+          success: false,
+          message: `Hierarchy level with name "${trimmedName}" already exists.`,
+        });
+      }
+      level.name = trimmedName;
+    }
+
+    if (code && code.trim()) {
+      const cleanCode = code.trim().toLowerCase();
+      const duplicateCode = await HierarchyLevel.findOne({
+        _id: { $ne: level._id },
+        code: cleanCode,
+        is_deleted: false,
+      });
+      if (duplicateCode) {
+        return res.status(400).json({
+          success: false,
+          message: `Hierarchy code "${cleanCode}" is already in use.`,
+        });
+      }
+      level.code = cleanCode;
+
+      // Update existing team members who had old code
+      if (oldCode !== cleanCode) {
+        await TeamMember.updateMany(
+          { level: oldCode, is_deleted: false },
+          { level: cleanCode }
+        );
+      }
+    }
+
+    if (rank !== undefined) level.rank = Number(rank) || 1;
+    if (can_supervise !== undefined) level.can_supervise = Boolean(can_supervise);
+    if (requires_reporting !== undefined) level.requires_reporting = Boolean(requires_reporting);
+    if (badge_color) level.badge_color = badge_color;
+    if (description !== undefined) level.description = description.trim();
+    if (is_active !== undefined) level.is_active = is_active;
+
+    await level.save();
+
+    res.json({
+      success: true,
+      message: `Hierarchy level "${level.name}" updated successfully.`,
+      data: level,
+    });
+  } catch (err) {
+    console.error('updateHierarchyLevel Error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.deleteHierarchyLevel = async (req, res) => {
+  try {
+    const targetId = req.params.id || req.body._id || req.body.id || req.query.id;
+    if (!targetId) {
+      return res.status(400).json({ success: false, message: 'Hierarchy level ID is required for delete.' });
+    }
+    const level = await HierarchyLevel.findOne({ _id: targetId, is_deleted: false });
+    if (!level) {
+      return res.status(404).json({ success: false, message: 'Hierarchy level not found.' });
+    }
+
+    // Check if staff are currently assigned
+    const assignedStaff = await TeamMember.countDocuments({
+      $or: [
+        { level: level.code },
+        { level: level.code.toLowerCase() },
+        { level: level.code.toUpperCase() },
+        { hierarchy_id: level._id },
+      ],
+      is_deleted: false,
+    });
+
+    if (assignedStaff > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete hierarchy level "${level.name}". ${assignedStaff} staff member(s) are currently assigned to this level. Please reassign them first or deactivate the level.`,
+      });
+    }
+
+    level.is_deleted = true;
+    await level.save();
+
+    res.json({
+      success: true,
+      message: `Hierarchy level "${level.name}" removed successfully.`,
+    });
+  } catch (err) {
+    console.error('deleteHierarchyLevel Error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ==============================================================================
 // 2. GET ALL TEAM MEMBERS
 // ==============================================================================
 exports.getTeamMembers = async (req, res) => {
@@ -372,7 +659,7 @@ exports.getTeamMembers = async (req, res) => {
       query.department = department;
     }
     if (level && level !== 'all') {
-      query.level = level;
+      query.level = { $regex: new RegExp(`^${level}$`, 'i') };
     }
     if (status && status !== 'all') {
       query.status = status;
@@ -409,6 +696,9 @@ exports.getTeamMembers = async (req, res) => {
 // ==============================================================================
 exports.getTeamMemberById = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Invalid team member ID format' });
+    }
     const member = await TeamMember.findOne({ _id: req.params.id, is_deleted: false }).populate(
       'reports_to',
       'name member_code designation email phone level'
@@ -648,7 +938,7 @@ exports.getPerformanceReport = async (req, res) => {
     // 2. Fetch all team members
     const memberQuery = { is_deleted: false };
     if (department && department !== 'all') memberQuery.department = department;
-    if (level && level !== 'all') memberQuery.level = level;
+    if (level && level !== 'all') memberQuery.level = { $regex: new RegExp(`^${level}$`, 'i') };
 
     const members = await TeamMember.find(memberQuery)
       .sort({ level: 1, name: 1 })
