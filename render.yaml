@@ -14,4 +14,4 @@ services:
       - key: EXTERNAL_CRM_API_KEY
         value: 2ee062fd20e15a2da9c359fac339da2c24396001c9d748df0ef4c6a1d6a776a6
       - key: MONGODB_URI
-        sync: false
+        value: mongodb+srv://zeelsuiuxdesigner_db_user:Danzason12345@cluster0.zlkp2uy.mongodb.net/danzason_erp?retryWrites=true&w=majority
