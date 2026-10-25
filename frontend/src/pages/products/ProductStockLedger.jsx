@@ -21,7 +21,9 @@ import {
   Tag,
   Boxes,
   Palette,
-  Check
+  Check,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { productApi } from '../../services/procurementService';
 
@@ -116,6 +118,9 @@ export default function ProductStockLedger() {
     searchParams.set('tab', tab);
     setSearchParams(searchParams, { replace: true });
   };
+
+  const [expandAllColors, setExpandAllColors] = useState(false);
+  const [expandAllWarehouses, setExpandAllWarehouses] = useState(false);
   const [summary, setSummary] = useState({
     opening_stock: 0,
     total_in: 0,
@@ -509,129 +514,247 @@ export default function ProductStockLedger() {
         </div>
       )}
 
-      {/* 3. DYNAMIC COLOR-WISE VARIANTS TABS */}
-      {colorVariants.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 px-2 pt-1">
+      {/* 3. DYNAMIC INVENTORY DIMENSIONS (COLOR & WAREHOUSE SELECTORS) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3.5">
+        
+        {/* ROW A: WAREHOUSE LOCATIONS */}
+        <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1.5 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <Palette className="w-4 h-4 text-emerald-600" />
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                Color-wise Selection ({colorVariants.length} Colors)
+              <Warehouse className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
+                Warehouse Locations ({warehouses.length > 1 ? warehouses.length - 1 : warehouses.length} Depots)
               </h3>
-            </div>
-            <span className="text-[11px] font-semibold text-slate-400">
-              Click any color to view its specific stock ledger & movements
-            </span>
-          </div>
-
-          {/* Color Pills Row */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-            <button
-              type="button"
-              onClick={() => handleColorChange('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 border ${
-                activeColor === 'all'
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <span>All Colors</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                  activeColor === 'all' ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200'
-                }`}
-              >
-                {colorVariants.length}
+              <span className="text-[10px] text-slate-400 font-medium hidden md:inline">
+                • Select warehouse to filter stock balance
               </span>
-            </button>
+            </div>
 
-            {colorVariants.map((c, cIdx) => {
-              const cName = c.name || c.color;
-              const isSelected = activeColor.toLowerCase() === cName.toLowerCase();
+            {/* Quick Warehouse Dropdown for instant selection */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Jump to:</span>
+              <select
+                value={activeTab}
+                onChange={(e) => handleTabChange(e.target.value)}
+                className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 transition-colors cursor-pointer"
+              >
+                <option value="all">
+                  All Warehouses ({warehouses.find((w) => w.id === 'all')?.closing_stock || summary.closing_stock || 0} {summary.uom})
+                </option>
+                {warehouses.filter((w) => w.id !== 'all').map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.warehouse_name} ({wh.closing_stock !== undefined ? wh.closing_stock : 0} {summary.uom}){wh.is_default ? ' - DEFAULT' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Warehouse Pills (Flex Wrap with zero horizontal scroll!) */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(() => {
+              const maxWhShow = 4;
+              const shouldTruncate = warehouses.length > maxWhShow && !expandAllWarehouses;
+              const displayedWhs = shouldTruncate
+                ? warehouses.slice(0, maxWhShow).concat(
+                    !warehouses.slice(0, maxWhShow).some((w) => w.id === activeTab) && activeTab !== 'all'
+                      ? warehouses.filter((w) => w.id === activeTab)
+                      : []
+                  )
+                : warehouses;
+
               return (
-                <button
-                  key={cIdx}
-                  type="button"
-                  onClick={() => handleColorChange(cName)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 border ${
-                    isSelected
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                  }`}
-                >
-                  <span
-                    className="w-3.5 h-3.5 rounded-full border border-white shadow-2xs shrink-0"
-                    style={{ backgroundColor: c.color_code || c.hex || '#000000' }}
-                  />
-                  <span>{cName}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-md text-[10px] font-extrabold ${
-                      isSelected
-                        ? 'bg-emerald-800 text-emerald-100'
-                        : 'bg-white text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    {c.stock !== undefined ? c.stock : 75} {summary.uom}
-                  </span>
-                </button>
+                <>
+                  {displayedWhs.map((wh) => {
+                    const isSelected = activeTab === wh.id || (wh.id === 'all' && activeTab === 'all');
+                    return (
+                      <button
+                        key={wh.id}
+                        type="button"
+                        onClick={() => handleTabChange(wh.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/30'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>{wh.warehouse_name}</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                            isSelected
+                              ? 'bg-emerald-800 text-emerald-100'
+                              : 'bg-white text-slate-700 border border-slate-200'
+                          }`}
+                        >
+                          {wh.closing_stock !== undefined ? wh.closing_stock : 0} {summary.uom}
+                        </span>
+                        {wh.is_default && wh.id !== 'all' && (
+                          <span
+                            className={`text-[9px] uppercase px-1 rounded ${
+                              isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            Default
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {warehouses.length > maxWhShow && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandAllWarehouses(!expandAllWarehouses)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      {expandAllWarehouses ? (
+                        <>
+                          <span>Show Less</span>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          <span>+{warehouses.length - maxWhShow} More</span>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
         </div>
-      )}
 
-      {/* 4. DYNAMIC WAREHOUSE TABS — STRICTLY INSIDE PRODUCT LEDGER PAGE */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs">
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 px-2 pt-1">
-          <div className="flex items-center gap-2">
-            <Warehouse className="w-4 h-4 text-emerald-600" />
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-              Warehouse Locations (Dynamic Master)
-            </h3>
-          </div>
-          <span className="text-[11px] font-semibold text-slate-400">
-            Click any warehouse tab to filter ledger & recalculate running balance
-          </span>
-        </div>
+        {/* DIVIDER */}
+        {colorVariants.length > 0 && <div className="border-t border-slate-100" />}
 
-        {/* Tab Buttons Row: All | Warehouse A | Warehouse B | ... */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-          {warehouses.map((wh) => {
-            const isSelected = activeTab === wh.id || (wh.id === 'all' && activeTab === 'all');
-            return (
+        {/* ROW B: COLOR-WISE VARIANTS */}
+        {colorVariants.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1.5 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800">
+                  Color Variants ({colorVariants.length} Colors)
+                </h3>
+                <span className="text-[10px] text-slate-400 font-medium hidden md:inline">
+                  • Click color pill or select from dropdown
+                </span>
+              </div>
+
+              {/* Quick Color Dropdown for instant selection */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Jump to:</span>
+                <select
+                  value={activeColor}
+                  onChange={(e) => handleColorChange(e.target.value)}
+                  className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 transition-colors cursor-pointer"
+                >
+                  <option value="all">All Colors ({colorVariants.length} Variants)</option>
+                  {colorVariants.map((c, cIdx) => {
+                    const cName = c.name || c.color;
+                    return (
+                      <option key={cIdx} value={cName}>
+                        {cName} ({c.stock !== undefined ? c.stock : 75} {summary.uom})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+
+            {/* Color Pills (Flex Wrap with zero horizontal scroll!) */}
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
-                key={wh.id}
                 type="button"
-                onClick={() => handleTabChange(wh.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 border ${
-                  isSelected
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                onClick={() => handleColorChange('all')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                  activeColor === 'all'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <span>{wh.warehouse_name}</span>
+                <span>All Colors</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                    isSelected
-                      ? 'bg-emerald-800 text-emerald-100'
-                      : 'bg-white text-slate-700 border border-slate-200'
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    activeColor === 'all' ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200'
                   }`}
                 >
-                  {wh.closing_stock !== undefined ? wh.closing_stock : 0} {summary.uom}
+                  {colorVariants.length}
                 </span>
-                {wh.is_default && wh.id !== 'all' && (
-                  <span
-                    className={`text-[9px] uppercase px-1 rounded ${
-                      isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Default
-                  </span>
-                )}
               </button>
-            );
-          })}
-        </div>
+
+              {(() => {
+                const maxColorsShow = 6;
+                const shouldTruncate = colorVariants.length > maxColorsShow && !expandAllColors;
+                const displayedColors = shouldTruncate
+                  ? colorVariants.slice(0, maxColorsShow).concat(
+                      !colorVariants.slice(0, maxColorsShow).some((c) => (c.name || c.color || '').toLowerCase() === activeColor.toLowerCase()) && activeColor !== 'all'
+                        ? colorVariants.filter((c) => (c.name || c.color || '').toLowerCase() === activeColor.toLowerCase())
+                        : []
+                    )
+                  : colorVariants;
+
+                return (
+                  <>
+                    {displayedColors.map((c, cIdx) => {
+                      const cName = c.name || c.color;
+                      const isSelected = activeColor.toLowerCase() === cName.toLowerCase();
+                      return (
+                        <button
+                          key={cIdx}
+                          type="button"
+                          onClick={() => handleColorChange(cName)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/30'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-white shadow-2xs shrink-0"
+                            style={{ backgroundColor: c.color_code || c.hex || '#000000' }}
+                          />
+                          <span>{cName}</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-md text-[10px] font-extrabold ${
+                              isSelected
+                                ? 'bg-emerald-800 text-emerald-100'
+                                : 'bg-white text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {c.stock !== undefined ? c.stock : 75} {summary.uom}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    {colorVariants.length > maxColorsShow && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandAllColors(!expandAllColors)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        {expandAllColors ? (
+                          <>
+                            <span>Show Less</span>
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </>
+                        ) : (
+                          <>
+                            <span>+{colorVariants.length - maxColorsShow} More Colors</span>
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 4.5. MAIN MODULE TABS: Size-Wise Matrix vs Stock Movement History */}
