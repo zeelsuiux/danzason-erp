@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -23,7 +23,8 @@ import {
   Palette,
   Check,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  X
 } from 'lucide-react';
 import { productApi } from '../../services/procurementService';
 
@@ -94,6 +95,296 @@ function buildFallbackSizeWarehouseMatrix(colorsList, warehousesList, currentPro
       warehouses: whRows,
     };
   });
+}
+
+function SearchableWarehouseSelect({ warehouses, activeTab, onSelect, summary }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const allWh = warehouses.find((w) => w.id === 'all');
+  const activeWh = activeTab !== 'all'
+    ? warehouses.find((w) => String(w.id) === String(activeTab) || String(w._id) === String(activeTab))
+    : null;
+
+  const filteredWarehouses = useMemo(() => {
+    if (!searchTerm.trim()) return warehouses;
+    const term = searchTerm.toLowerCase().trim();
+    return warehouses.filter(
+      (w) =>
+        (w.warehouse_name && w.warehouse_name.toLowerCase().includes(term)) ||
+        (w.warehouse_code && w.warehouse_code.toLowerCase().includes(term))
+    );
+  }, [warehouses, searchTerm]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between gap-2.5 min-w-[210px] sm:min-w-[250px] px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 transition-colors shadow-2xs cursor-pointer"
+      >
+        <div className="flex items-center gap-2 truncate">
+          <Warehouse className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="truncate">
+            {activeWh ? activeWh.warehouse_name : 'All Warehouses'}
+          </span>
+          <span className="text-[10px] font-extrabold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+            {activeWh ? (activeWh.closing_stock !== undefined ? activeWh.closing_stock : 0) : (allWh?.closing_stock || summary.closing_stock || 0)} {summary.uom}
+          </span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1.5 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
+          {/* Search Header */}
+          <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search warehouse depot..."
+                autoFocus
+                className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* List items */}
+          <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 scrollbar-thin">
+            {filteredWarehouses.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                No warehouses found matching &quot;{searchTerm}&quot;
+              </div>
+            ) : (
+              filteredWarehouses.map((wh) => {
+                const isSelected = activeTab === wh.id || (wh.id === 'all' && activeTab === 'all');
+                return (
+                  <button
+                    key={wh.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect(wh.id);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-colors text-left cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-200'
+                        : 'hover:bg-slate-50 text-slate-700 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+                        <Warehouse className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="truncate">
+                        <div className="truncate font-bold text-slate-900">{wh.warehouse_name}</div>
+                        {wh.warehouse_code && (
+                          <div className="text-[10px] text-slate-400 font-mono">{wh.warehouse_code}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {wh.is_default && wh.id !== 'all' && (
+                        <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-slate-200 text-slate-700 font-bold">
+                          Default
+                        </span>
+                      )}
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                        {wh.closing_stock !== undefined ? wh.closing_stock : 0} {summary.uom}
+                      </span>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchableColorSelect({ colorVariants, activeColor, onSelect, summary }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const activeColorObj = activeColor !== 'all'
+    ? colorVariants.find((c) => (c.name || c.color || '').toLowerCase() === activeColor.toLowerCase())
+    : null;
+
+  const filteredColors = useMemo(() => {
+    const list = [{ name: 'All Colors', color: 'all', isAll: true }, ...colorVariants];
+    if (!searchTerm.trim()) return list;
+    const term = searchTerm.toLowerCase().trim();
+    return list.filter(
+      (c) =>
+        (c.name || c.color || '').toLowerCase().includes(term) ||
+        (c.sku && c.sku.toLowerCase().includes(term))
+    );
+  }, [colorVariants, searchTerm]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between gap-2.5 min-w-[210px] sm:min-w-[250px] px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 transition-colors shadow-2xs cursor-pointer"
+      >
+        <div className="flex items-center gap-2 truncate">
+          {activeColorObj ? (
+            <span
+              className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs shrink-0"
+              style={{ backgroundColor: activeColorObj.color_code || activeColorObj.hex || '#000000' }}
+            />
+          ) : (
+            <Palette className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          )}
+          <span className="truncate">
+            {activeColorObj ? (activeColorObj.name || activeColorObj.color) : 'All Colors'}
+          </span>
+          <span className="text-[10px] font-extrabold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+            {activeColorObj ? (activeColorObj.stock !== undefined ? activeColorObj.stock : 75) : colorVariants.length} {activeColorObj ? summary.uom : 'Vars'}
+          </span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1.5 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
+          {/* Search Header */}
+          <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search color variant..."
+                autoFocus
+                className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* List items */}
+          <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 scrollbar-thin">
+            {filteredColors.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                No color variants found matching &quot;{searchTerm}&quot;
+              </div>
+            ) : (
+              filteredColors.map((c, idx) => {
+                const cName = c.name || c.color;
+                const isAll = c.isAll || cName === 'All Colors' || c.color === 'all';
+                const isSelected = isAll ? activeColor === 'all' : (activeColor.toLowerCase() === cName.toLowerCase());
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      onSelect(isAll ? 'all' : cName);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-colors text-left cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-200'
+                        : 'hover:bg-slate-50 text-slate-700 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      {isAll ? (
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'}`}>
+                          <span className="text-[9px] font-bold">ALL</span>
+                        </div>
+                      ) : (
+                        <span
+                          className="w-4 h-4 rounded-full border border-slate-300 shadow-2xs shrink-0"
+                          style={{ backgroundColor: c.color_code || c.hex || '#000000' }}
+                        />
+                      )}
+                      <div className="truncate">
+                        <div className="truncate font-bold text-slate-900">{cName}</div>
+                        {c.sku && (
+                          <div className="text-[10px] text-slate-400 font-mono">{c.sku}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                        {isAll ? `${colorVariants.length} Colors` : `${c.stock !== undefined ? c.stock : 75} ${summary.uom}`}
+                      </span>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function ProductStockLedger() {
@@ -530,23 +821,15 @@ export default function ProductStockLedger() {
               </span>
             </div>
 
-            {/* Quick Warehouse Dropdown for instant selection */}
+            {/* Searchable Warehouse Dropdown */}
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Jump to:</span>
-              <select
-                value={activeTab}
-                onChange={(e) => handleTabChange(e.target.value)}
-                className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 transition-colors cursor-pointer"
-              >
-                <option value="all">
-                  All Warehouses ({warehouses.find((w) => w.id === 'all')?.closing_stock || summary.closing_stock || 0} {summary.uom})
-                </option>
-                {warehouses.filter((w) => w.id !== 'all').map((wh) => (
-                  <option key={wh.id} value={wh.id}>
-                    {wh.warehouse_name} ({wh.closing_stock !== undefined ? wh.closing_stock : 0} {summary.uom}){wh.is_default ? ' - DEFAULT' : ''}
-                  </option>
-                ))}
-              </select>
+              <SearchableWarehouseSelect
+                warehouses={warehouses}
+                activeTab={activeTab}
+                onSelect={handleTabChange}
+                summary={summary}
+              />
             </div>
           </div>
 
@@ -643,24 +926,15 @@ export default function ProductStockLedger() {
                 </span>
               </div>
 
-              {/* Quick Color Dropdown for instant selection */}
+              {/* Searchable Color Dropdown */}
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Jump to:</span>
-                <select
-                  value={activeColor}
-                  onChange={(e) => handleColorChange(e.target.value)}
-                  className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:border-emerald-500 transition-colors cursor-pointer"
-                >
-                  <option value="all">All Colors ({colorVariants.length} Variants)</option>
-                  {colorVariants.map((c, cIdx) => {
-                    const cName = c.name || c.color;
-                    return (
-                      <option key={cIdx} value={cName}>
-                        {cName} ({c.stock !== undefined ? c.stock : 75} {summary.uom})
-                      </option>
-                    );
-                  })}
-                </select>
+                <SearchableColorSelect
+                  colorVariants={colorVariants}
+                  activeColor={activeColor}
+                  onSelect={handleColorChange}
+                  summary={summary}
+                />
               </div>
             </div>
 
