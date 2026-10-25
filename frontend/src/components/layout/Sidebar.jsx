@@ -21,6 +21,7 @@ import {
   Sparkles,
   RotateCw,
   Headphones,
+  Megaphone,
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -54,6 +55,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   // 4. Sales & CRM
   const salesMenuItems = [
+    { name: 'Marketing Dashboard', path: '/marketing', icon: Megaphone },
     { name: 'Leads & Follow-ups', path: '/sales/leads', icon: UserPlus },
     { name: 'Customers', path: '/sales/customers', icon: UserCheck },
     { name: 'Sales Orders', path: '/sales/quotations', icon: ShoppingBag },

@@ -14,6 +14,7 @@ const teamController = require('./controllers/teamController');
 const upsellRoutes = require('./routes/upsellRoutes');
 const repeatOrderRoutes = require('./routes/repeatOrderRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
+const marketingRoutes = require('./routes/marketingRoutes');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
@@ -80,6 +81,11 @@ app.use('/api/complaints', complaintRoutes);
 app.use('/api/v1/customer-service', complaintRoutes);
 app.use('/api/customer-service', complaintRoutes);
 app.use('/api/v1/sales/complaints', complaintRoutes);
+
+// Marketing Analytics & Campaigns
+app.use('/api/v1/marketing', marketingRoutes);
+app.use('/api/marketing', marketingRoutes);
+app.use('/api/v1/sales/marketing', marketingRoutes);
 
 // 404 handler
 app.use((req, res) => {

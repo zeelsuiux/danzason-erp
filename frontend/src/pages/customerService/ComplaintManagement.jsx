@@ -27,6 +27,8 @@ import {
   HelpCircle,
   Tag,
   Building,
+  XCircle,
+  Activity,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
@@ -392,19 +394,57 @@ export default function ComplaintManagement() {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'open':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Open / New</span>;
+      case 'pending':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Pending
+          </span>
+        );
       case 'in_investigation':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">In Investigation</span>;
+      case 'in_process':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            In Process
+          </span>
+        );
       case 'action_proposed':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">Action Proposed</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            Action Proposed
+          </span>
+        );
       case 'resolved':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">Resolved</span>;
+      case 'solved':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+            Solved
+          </span>
+        );
       case 'closed':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">Closed</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100/70 text-emerald-900 border border-emerald-300">
+            <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+            Closed (Solved)
+          </span>
+        );
+      case 'cancelled':
       case 'rejected':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">Rejected</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <XCircle className="w-3 h-3 text-rose-500" />
+            Cancelled
+          </span>
+        );
       default:
-        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">{status}</span>;
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+            {status}
+          </span>
+        );
     }
   };
 
@@ -455,7 +495,7 @@ export default function ComplaintManagement() {
         <div className="space-y-0.5">
           <div className="font-bold text-slate-800 text-xs flex items-center gap-1">
             <Building className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="truncate max-w-[170px]">{c.customer_name}</span>
+            <span className="truncate">{c.customer_name}</span>
           </div>
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-600">
             <Phone className="w-3 h-3 text-slate-400 shrink-0" />
@@ -482,7 +522,7 @@ export default function ComplaintManagement() {
         const catInfo = getCategoryLabel(c.category);
         const IconComponent = catInfo.icon;
         return (
-          <div className="space-y-1 max-w-[280px]">
+          <div className="space-y-1">
             <div className="flex items-center gap-1">
               <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold border ${catInfo.color}`}>
                 <IconComponent className="w-2.5 h-2.5" />
@@ -579,13 +619,14 @@ export default function ComplaintManagement() {
           <select
             value={c.status}
             onChange={(e) => handleQuickStatusChange(c, e.target.value)}
-            className="text-[10px] font-semibold border border-slate-200 rounded-lg py-1 px-1.5 bg-slate-50 text-slate-700 outline-none"
+            className="text-[10px] font-bold border border-slate-200 rounded-lg py-1 px-1.5 bg-slate-50 text-slate-700 outline-none hover:border-slate-300"
           >
-            <option value="open">Open</option>
-            <option value="in_investigation">Investigate</option>
-            <option value="action_proposed">Propose Action</option>
-            <option value="resolved">Resolved</option>
+            <option value="open">Pending</option>
+            <option value="in_investigation">In Process</option>
+            <option value="action_proposed">Action Proposed</option>
+            <option value="resolved">Solved</option>
             <option value="closed">Closed</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
       ),
@@ -593,7 +634,7 @@ export default function ComplaintManagement() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto font-sans">
+    <div className="space-y-6 w-full font-sans pb-10">
       {/* Top Page Header */}
       <PageHeader
         title="Customer Service & Complaint Management"
@@ -622,9 +663,9 @@ export default function ComplaintManagement() {
         }
       />
 
-      {/* Top Summary KPI Cards */}
+      {/* Top Summary KPI Cards: Pending / Process / Solved / Cancelled */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Total Complaints */}
+        {/* 1. Total Complaints */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-soft">
           <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
             <span>Total Tickets</span>
@@ -638,62 +679,59 @@ export default function ComplaintManagement() {
           </div>
         </div>
 
-        {/* Active Issues */}
-        <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 shadow-soft">
+        {/* 2. Pending */}
+        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/90 shadow-soft">
           <div className="flex items-center justify-between text-amber-800 text-xs font-bold uppercase tracking-wider mb-1">
-            <span>Active Pending</span>
+            <span>Pending</span>
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-black font-mono text-amber-900">
-            {statsLoading ? '...' : stats?.activeTickets || 0}
+            {statsLoading ? '...' : stats?.pendingCount ?? stats?.openCount ?? 0}
           </div>
           <div className="text-[11px] text-amber-700 mt-1 font-medium">
-            Open & under investigation
+            New & awaiting review
           </div>
         </div>
 
-        {/* Critical Issues */}
-        <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80 shadow-soft">
-          <div className="flex items-center justify-between text-rose-800 text-xs font-bold uppercase tracking-wider mb-1">
-            <span>Critical Priority</span>
-            <AlertCircle className="w-4 h-4 text-rose-600" />
+        {/* 3. In Process */}
+        <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/90 shadow-soft">
+          <div className="flex items-center justify-between text-blue-800 text-xs font-bold uppercase tracking-wider mb-1">
+            <span>In Process</span>
+            <Activity className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-2xl font-black font-mono text-rose-900">
-            {statsLoading ? '...' : stats?.criticalCount || 0}
+          <div className="text-2xl font-black font-mono text-blue-900">
+            {statsLoading ? '...' : stats?.processCount ?? stats?.inInvestigationCount ?? 0}
           </div>
-          <div className="text-[11px] text-rose-700 mt-1 font-medium">
-            Requires 24h SLA action
+          <div className="text-[11px] text-blue-700 mt-1 font-medium">
+            Investigation & proposed
           </div>
         </div>
 
-        {/* Resolution Rate */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-soft">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
-            <span>Resolution Rate</span>
+        {/* 4. Solved */}
+        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 shadow-soft">
+          <div className="flex items-center justify-between text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1">
+            <span>Solved</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-black font-mono text-emerald-600">
-            {statsLoading ? '...' : `${stats?.resolutionRate || 0}%`}
+          <div className="text-2xl font-black font-mono text-emerald-900">
+            {statsLoading ? '...' : stats?.solvedCount ?? stats?.resolvedCount ?? 0}
           </div>
-          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-            <div
-              className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(stats?.resolutionRate || 0, 100)}%` }}
-            />
+          <div className="text-[11px] text-emerald-700 mt-1 font-medium truncate">
+            {stats?.resolutionRate || 0}% rate • ₹{Number(stats?.totalCompensation || 0).toLocaleString('en-IN')} comp
           </div>
         </div>
 
-        {/* Total Compensation Issued */}
-        <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/80 shadow-soft">
-          <div className="flex items-center justify-between text-purple-800 text-xs font-bold uppercase tracking-wider mb-1">
-            <span>Compensations</span>
-            <Receipt className="w-4 h-4 text-purple-600" />
+        {/* 5. Cancelled */}
+        <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/90 shadow-soft">
+          <div className="flex items-center justify-between text-rose-800 text-xs font-bold uppercase tracking-wider mb-1">
+            <span>Cancelled</span>
+            <XCircle className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="text-xl font-black font-mono text-purple-900 truncate">
-            ₹{Number(stats?.totalCompensation || 0).toLocaleString('en-IN')}
+          <div className="text-2xl font-black font-mono text-rose-900">
+            {statsLoading ? '...' : stats?.cancelledCount ?? 0}
           </div>
-          <div className="text-[11px] text-purple-700 mt-1 font-medium">
-            Credit notes & replacements
+          <div className="text-[11px] text-rose-700 mt-1 font-medium">
+            Withdrawn or rejected
           </div>
         </div>
       </div>
@@ -703,23 +741,28 @@ export default function ComplaintManagement() {
         {/* Filter Navigation Tabs */}
         <div className="flex border-b border-slate-200 px-4 pt-2 gap-2 overflow-x-auto">
           {[
-            { id: 'all', label: 'All Tickets' },
-            { id: 'active', label: 'Active Pending' },
-            { id: 'in_investigation', label: 'In Investigation' },
-            { id: 'action_proposed', label: 'Action Proposed' },
-            { id: 'resolved_closed', label: 'Resolved & Closed' },
+            { id: 'all', label: 'All Tickets', count: stats?.total ?? 0, badgeBg: 'bg-slate-100 text-slate-700' },
+            { id: 'pending', label: 'Pending', count: stats?.pendingCount ?? stats?.openCount ?? 0, badgeBg: 'bg-amber-100 text-amber-800' },
+            { id: 'process', label: 'In Process', count: stats?.processCount ?? stats?.inInvestigationCount ?? 0, badgeBg: 'bg-blue-100 text-blue-800' },
+            { id: 'solved', label: 'Solved', count: stats?.solvedCount ?? stats?.resolvedCount ?? 0, badgeBg: 'bg-emerald-100 text-emerald-800' },
+            { id: 'cancelled', label: 'Cancelled', count: stats?.cancelledCount ?? 0, badgeBg: 'bg-rose-100 text-rose-800' },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-3 text-xs font-bold border-b-2 transition whitespace-nowrap -mb-[1px] ${
+              className={`py-3 px-3.5 text-xs font-bold border-b-2 transition whitespace-nowrap -mb-[1px] flex items-center gap-2 ${
                 activeTab === tab.id
-                  ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40 rounded-t-lg'
+                  ? 'border-emerald-600 text-emerald-800 bg-emerald-50/50 rounded-t-lg shadow-2xs'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${tab.badgeBg}`}
+              >
+                {statsLoading ? '...' : tab.count}
+              </span>
             </button>
           ))}
         </div>

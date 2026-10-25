@@ -158,7 +158,18 @@ const complaintSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['open', 'in_investigation', 'action_proposed', 'resolved', 'closed', 'rejected'],
+      enum: [
+        'open',
+        'pending',
+        'in_investigation',
+        'in_process',
+        'action_proposed',
+        'resolved',
+        'solved',
+        'closed',
+        'rejected',
+        'cancelled',
+      ],
       default: 'open',
     },
     assigned_to: {

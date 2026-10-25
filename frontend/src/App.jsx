@@ -26,6 +26,7 @@ import SalesReturns from './pages/sales/SalesReturns';
 import UpsellCrossSellManagement from './pages/sales/UpsellCrossSellManagement';
 import RepeatOrderManagement from './pages/sales/RepeatOrderManagement';
 import ComplaintManagement from './pages/customerService/ComplaintManagement';
+import MarketingDashboard from './pages/marketing/MarketingDashboard';
 import ProductsList from './pages/products/ProductsList';
 import ProductStockLedger from './pages/products/ProductStockLedger';
 import RawMaterialCatalog from './pages/rawMaterials/RawMaterialCatalog';
@@ -96,6 +97,11 @@ export default function App() {
           <Route path="manufacturing/orders" element={<ProcessingOrders />} />
           <Route path="manufacturing/bills" element={<ProcessingBills />} />
           <Route path="manufacturing/tracking" element={<ProcessingMaterialTracking />} />
+
+          {/* Marketing, Growth & Lead Generation */}
+          <Route path="marketing" element={<MarketingDashboard />} />
+          <Route path="sales/marketing" element={<MarketingDashboard />} />
+          <Route path="marketing/campaigns" element={<MarketingDashboard />} />
 
           {/* Sales & Distribution */}
           <Route path="sales" element={<Navigate to="/sales/quotations" replace />} />

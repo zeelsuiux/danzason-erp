@@ -156,6 +156,74 @@ const SAMPLE_COMPLAINTS = [
       },
     ],
   },
+  {
+    customer_name: 'Royal Garments Surat',
+    company_name: 'Royal Garments Pvt Ltd',
+    contact_person: 'Rajesh Choksi',
+    mobile: '9825109988',
+    email: 'rajesh@royalgarments.in',
+    channel: 'phone',
+    so_number: 'SO-2026-00028',
+    invoice_number: 'INV-2026-00024',
+    product_name: 'Cotton Lycra Bio-Wash Polo T-Shirt',
+    category: 'fabric_quality',
+    priority: 'high',
+    subject: 'Collar ribbing curling after steam press during retail display',
+    description: 'During store rack display steam pressing, the collar rib of 30 polo shirts curled outwards. Client requested inspection before opening next cartons.',
+    defective_quantity: 30,
+    affected_order_value: 95000,
+    status: 'open',
+    assigned_to: 'Vikram Mehta (QC Lead)',
+    sla_due_date: new Date(Date.now() + 36 * 60 * 60 * 1000),
+    timeline: [
+      {
+        date: new Date(Date.now() - 4 * 60 * 60 * 1000),
+        type: 'customer_call',
+        author: 'Pooja Shah',
+        notes: 'Ticket logged upon telephonic complaint from Mr. Rajesh. Assigned to QC lead for inspection.',
+      },
+    ],
+  },
+  {
+    customer_name: 'Vogue Fashion Hub Ahmedabad',
+    company_name: 'Vogue Lifestyle Retail',
+    contact_person: 'Nirav Shah',
+    mobile: '9879012345',
+    email: 'nirav@voguefashion.com',
+    channel: 'whatsapp',
+    so_number: 'SO-2026-00031',
+    invoice_number: 'INV-2026-00027',
+    product_name: 'Rayon Printed Kurti Set',
+    category: 'packaging_labeling',
+    priority: 'low',
+    subject: 'Reported damaged carton outer packing during courier transit',
+    description: 'Store inward team initially reported tape tearing on outer master carton. Upon internal opening and piece verification, all poly-packs were intact with zero defect. Client requested ticket cancellation.',
+    defective_quantity: 0,
+    affected_order_value: 48000,
+    status: 'cancelled',
+    assigned_to: 'Customer Service Team',
+    resolution: {
+      resolution_type: 'none',
+      resolution_notes: 'Client confirmed all pieces in perfect condition. False alarm due to outer transport dust. Ticket cancelled with client consent.',
+      compensation_amount: 0,
+      resolved_by: 'Customer Service Team',
+      resolved_at: new Date(Date.now() - 6 * 60 * 60 * 1000),
+    },
+    timeline: [
+      {
+        date: new Date(Date.now() - 10 * 60 * 60 * 1000),
+        type: 'whatsapp_chat',
+        author: 'Customer Service',
+        notes: 'WhatsApp photo of courier carton torn tape received.',
+      },
+      {
+        date: new Date(Date.now() - 6 * 60 * 60 * 1000),
+        type: 'status_change',
+        author: 'Customer Service Team',
+        notes: 'Client confirmed merchandise inside is 100% fine. Ticket marked Cancelled.',
+      },
+    ],
+  },
 ];
 
 async function ensureSampleComplaints() {
@@ -166,6 +234,15 @@ async function ensureSampleComplaints() {
         await Complaint.create(item);
       }
       console.log('🌱 Seeded default customer service complaints successfully.');
+    } else {
+      const hasOpen = await Complaint.findOne({ status: { $in: ['open', 'pending'] }, is_deleted: false });
+      const hasCancelled = await Complaint.findOne({ status: { $in: ['cancelled', 'rejected'] }, is_deleted: false });
+      if (!hasOpen && SAMPLE_COMPLAINTS[4]) {
+        await Complaint.create(SAMPLE_COMPLAINTS[4]);
+      }
+      if (!hasCancelled && SAMPLE_COMPLAINTS[5]) {
+        await Complaint.create(SAMPLE_COMPLAINTS[5]);
+      }
     }
   } catch (err) {
     console.warn('⚠️ Could not seed complaints:', err.message);
@@ -193,10 +270,18 @@ exports.getComplaints = async (req, res) => {
 
     // Status filter
     if (status && status !== 'all') {
-      if (status === 'active') {
-        query.status = { $in: ['open', 'in_investigation', 'action_proposed'] };
-      } else if (status === 'resolved_closed') {
-        query.status = { $in: ['resolved', 'closed'] };
+      if (status === 'pending' || status === 'open') {
+        query.status = { $in: ['open', 'pending'] };
+      } else if (status === 'process' || status === 'in_process' || status === 'in_investigation') {
+        query.status = { $in: ['in_investigation', 'in_process', 'action_proposed'] };
+      } else if (status === 'action_proposed') {
+        query.status = 'action_proposed';
+      } else if (status === 'solved' || status === 'resolved' || status === 'resolved_closed') {
+        query.status = { $in: ['resolved', 'solved', 'closed'] };
+      } else if (status === 'cancelled' || status === 'rejected') {
+        query.status = { $in: ['cancelled', 'rejected'] };
+      } else if (status === 'active') {
+        query.status = { $in: ['open', 'pending', 'in_investigation', 'in_process', 'action_proposed'] };
       } else {
         query.status = status;
       }
@@ -245,13 +330,25 @@ exports.getComplaints = async (req, res) => {
     ]);
 
     // Calculate quick counts for tab badges
-    const [openCount, investigatingCount, actionProposedCount, resolvedCount, closedCount] = await Promise.all([
-      Complaint.countDocuments({ status: 'open', is_deleted: false }),
-      Complaint.countDocuments({ status: 'in_investigation', is_deleted: false }),
+    const [
+      openCount,
+      investigatingCount,
+      actionProposedCount,
+      resolvedCount,
+      closedCount,
+      cancelledCount,
+    ] = await Promise.all([
+      Complaint.countDocuments({ status: { $in: ['open', 'pending'] }, is_deleted: false }),
+      Complaint.countDocuments({ status: { $in: ['in_investigation', 'in_process'] }, is_deleted: false }),
       Complaint.countDocuments({ status: 'action_proposed', is_deleted: false }),
-      Complaint.countDocuments({ status: 'resolved', is_deleted: false }),
+      Complaint.countDocuments({ status: { $in: ['resolved', 'solved'] }, is_deleted: false }),
       Complaint.countDocuments({ status: 'closed', is_deleted: false }),
+      Complaint.countDocuments({ status: { $in: ['cancelled', 'rejected'] }, is_deleted: false }),
     ]);
+
+    const pendingCount = openCount;
+    const processCount = investigatingCount + actionProposedCount;
+    const solvedCount = resolvedCount + closedCount;
 
     res.json({
       success: true,
@@ -263,12 +360,16 @@ exports.getComplaints = async (req, res) => {
         totalPages: Math.ceil(total / parseInt(limit, 10)),
         badgeCounts: {
           all: total,
+          pending: pendingCount,
+          process: processCount,
+          solved: solvedCount,
+          cancelled: cancelledCount,
           open: openCount,
           in_investigation: investigatingCount,
           action_proposed: actionProposedCount,
           resolved: resolvedCount,
           closed: closedCount,
-          active: openCount + investigatingCount + actionProposedCount,
+          active: pendingCount + processCount,
         },
       },
     });
@@ -286,6 +387,11 @@ exports.getComplaintStats = async (req, res) => {
     const allComplaints = await Complaint.find({ is_deleted: false }).lean();
 
     const total = allComplaints.length;
+    let pendingCount = 0;
+    let processCount = 0;
+    let solvedCount = 0;
+    let cancelledCount = 0;
+
     let openCount = 0;
     let inInvestigationCount = 0;
     let actionProposedCount = 0;
@@ -299,13 +405,23 @@ exports.getComplaintStats = async (req, res) => {
     const priorityBreakdown = {};
 
     allComplaints.forEach((c) => {
-      if (c.status === 'open') openCount++;
-      if (c.status === 'in_investigation') inInvestigationCount++;
-      if (c.status === 'action_proposed') actionProposedCount++;
-      if (c.status === 'resolved') resolvedCount++;
-      if (c.status === 'closed') closedCount++;
+      const st = (c.status || '').toLowerCase();
+      if (['open', 'pending'].includes(st)) {
+        pendingCount++;
+        openCount++;
+      } else if (['in_investigation', 'in_process', 'action_proposed'].includes(st)) {
+        processCount++;
+        if (st === 'action_proposed') actionProposedCount++;
+        else inInvestigationCount++;
+      } else if (['resolved', 'solved', 'closed'].includes(st)) {
+        solvedCount++;
+        if (st === 'closed') closedCount++;
+        else resolvedCount++;
+      } else if (['cancelled', 'rejected'].includes(st)) {
+        cancelledCount++;
+      }
 
-      if (c.priority === 'critical' && ['open', 'in_investigation'].includes(c.status)) {
+      if (c.priority === 'critical' && ['open', 'pending', 'in_investigation', 'in_process'].includes(st)) {
         criticalCount++;
       }
 
@@ -316,14 +432,18 @@ exports.getComplaintStats = async (req, res) => {
       priorityBreakdown[c.priority] = (priorityBreakdown[c.priority] || 0) + 1;
     });
 
-    const activeTickets = openCount + inInvestigationCount + actionProposedCount;
-    const resolvedTotal = resolvedCount + closedCount;
+    const activeTickets = pendingCount + processCount;
+    const resolvedTotal = solvedCount;
     const resolutionRate = total > 0 ? ((resolvedTotal / total) * 100).toFixed(1) : 0;
 
     res.json({
       success: true,
       data: {
         total,
+        pendingCount,
+        processCount,
+        solvedCount,
+        cancelledCount,
         activeTickets,
         openCount,
         inInvestigationCount,
