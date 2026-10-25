@@ -24,67 +24,69 @@ import {
   Headphones,
   Megaphone,
   TrendingUp,
+  Landmark,
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
-  // 1. Executive Suite (CEO Command Center)
+  // 1. Executive Suite (Flagship Cockpit)
   const executiveMenuItems = [
     { name: 'CEO Command Center', path: '/dashboard', icon: LayoutDashboard },
   ];
 
-  // 2. Marketing & Growth
-  const marketingMenuItems = [
-    { name: 'Marketing Dashboard', path: '/marketing', icon: Megaphone },
+  // 2. Sales & CRM (Daily High Priority #1)
+  const salesMenuItems = [
+    { name: 'Sales Orders', path: '/sales/quotations', icon: ShoppingBag },
+    { name: 'Sales Invoices', path: '/sales/invoices', icon: Receipt },
+    { name: 'Customers', path: '/sales/customers', icon: UserCheck },
+    { name: 'Leads & Follow-ups', path: '/sales/leads', icon: UserPlus },
+    { name: 'Repeat Orders', path: '/sales/repeat-orders', icon: RotateCw },
+    { name: 'Upsell & Cross-sell', path: '/sales/upsell', icon: Sparkles },
+    { name: 'Customer Service', path: '/sales/complaints', icon: Headphones },
   ];
 
-  // 1. Purchase (Raw Material & Products combined)
+  // 3. Purchase & Procurement (Daily High Priority #2)
   const purchaseMenuItems = [
-    { name: 'Suppliers', path: '/purchase/suppliers', icon: Users },
-    { name: 'Quotations', path: '/purchase/inquiries', icon: MessageSquareDiff },
     { name: 'Purchase Orders', path: '/purchase/orders', icon: ShoppingCart },
     { name: 'Purchase Bills', path: '/purchase/invoices', icon: Receipt },
+    { name: 'Suppliers', path: '/purchase/suppliers', icon: Users },
+    { name: 'Supplier Quotations', path: '/purchase/inquiries', icon: MessageSquareDiff },
     { name: 'Purchase Returns', path: '/purchase/returns', icon: RotateCcw },
-    { name: 'Settings', path: '/purchase/settings', icon: Settings },
   ];
 
-  // 2. Job Work (Contractors & Manufacturing)
+  // 4. Job Work & Processing (Regular Operations)
   const jobWorkMenuItems = [
-    { name: 'Contractors', path: '/processing/contractors', icon: Building },
-    { name: 'Job Quotations', path: '/processing/quotations', icon: MessageSquareDiff },
     { name: 'Job Orders (MPO)', path: '/processing/orders', icon: Scissors },
     { name: 'Material Tracking', path: '/processing/material-tracking', icon: Truck },
     { name: 'Job Bills', path: '/processing/bills', icon: Receipt },
+    { name: 'Contractors', path: '/processing/contractors', icon: Building },
+    { name: 'Job Quotations', path: '/processing/quotations', icon: MessageSquareDiff },
   ];
 
-  // 3. Inventory & Catalog
+  // 5. Inventory & Stock
   const catalogMenuItems = [
-    { name: 'Products', path: '/products', icon: Boxes },
+    { name: 'Products Catalog', path: '/products', icon: Boxes },
     { name: 'Raw Materials', path: '/raw-materials', icon: Layers },
     { name: 'Stock Ledger', path: '/raw-materials/stock-ledger', icon: FileSpreadsheet },
   ];
 
-  // 4. Sales & CRM
-  const salesMenuItems = [
-    { name: 'Sales / Business Forecasting', path: '/sales/forecasting', icon: TrendingUp },
-    { name: 'Leads & Follow-ups', path: '/sales/leads', icon: UserPlus },
-    { name: 'Customers', path: '/sales/customers', icon: UserCheck },
-    { name: 'Sales Orders', path: '/sales/quotations', icon: ShoppingBag },
-    { name: 'Sales Invoices', path: '/sales/invoices', icon: Receipt },
-    { name: 'Upsell & Cross-sell', path: '/sales/upsell', icon: Sparkles },
-    { name: 'Repeat Orders', path: '/sales/repeat-orders', icon: RotateCw },
-    { name: 'Customer Service & Complaints', path: '/sales/complaints', icon: Headphones },
+  // 6. Growth & Planning
+  const growthMenuItems = [
+    { name: 'Marketing Dashboard', path: '/marketing', icon: Megaphone },
+    { name: 'Sales Forecasting', path: '/sales/forecasting', icon: TrendingUp },
   ];
 
-  // 5. Finance
+  // 7. Finance & Accounts
   const financeMenuItems = [
-    { name: 'Finance', path: '/finance', icon: WalletCards },
+    { name: 'Finance Overview', path: '/finance', icon: WalletCards },
+    { name: 'Owner Capital & Drawings', path: '/finance/capital', icon: Landmark },
   ];
 
-  // 6. Team & Performance
-  const teamMenuItems = [
-    { name: 'Team & Performance', path: '/team', icon: Award },
+  // 8. Administration & Access
+  const adminMenuItems = [
+    { name: 'Team & Access', path: '/team', icon: Award },
+    { name: 'Purchase Settings', path: '/purchase/settings', icon: Settings },
   ];
 
   const renderNavGroup = (title, items) => (
@@ -162,29 +164,29 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Navigation Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-800">
-          {/* Executive Suite */}
+          {/* 1. Executive Suite */}
           {renderNavGroup('Executive Suite', executiveMenuItems)}
 
-          {/* Marketing & Growth */}
-          {renderNavGroup('Marketing & Growth', marketingMenuItems)}
-
-          {/* 1. Purchase (Raw Material & Products combined) */}
-          {renderNavGroup('Purchase', purchaseMenuItems)}
-
-          {/* 2. Job Work */}
-          {renderNavGroup('Job Work', jobWorkMenuItems)}
-
-          {/* 3. Inventory & Catalog */}
-          {renderNavGroup('Inventory & Catalog', catalogMenuItems)}
-
-          {/* 4. Sales & CRM */}
+          {/* 2. Sales & CRM (Daily High Priority #1) */}
           {renderNavGroup('Sales & CRM', salesMenuItems)}
 
-          {/* 5. Finance */}
-          {renderNavGroup('Finance', financeMenuItems)}
+          {/* 3. Purchase & Procurement (Daily High Priority #2) */}
+          {renderNavGroup('Purchase & Procurement', purchaseMenuItems)}
 
-          {/* 6. Team & Performance */}
-          {renderNavGroup('Team & Access', teamMenuItems)}
+          {/* 4. Job Work & Processing */}
+          {renderNavGroup('Job Work & Processing', jobWorkMenuItems)}
+
+          {/* 5. Inventory & Stock */}
+          {renderNavGroup('Inventory & Stock', catalogMenuItems)}
+
+          {/* 6. Growth & Planning */}
+          {renderNavGroup('Growth & Planning', growthMenuItems)}
+
+          {/* 7. Finance & Accounts */}
+          {renderNavGroup('Finance & Accounts', financeMenuItems)}
+
+          {/* 8. Administration & Access */}
+          {renderNavGroup('Administration & Access', adminMenuItems)}
         </div>
 
         {/* User Profile Footer */}

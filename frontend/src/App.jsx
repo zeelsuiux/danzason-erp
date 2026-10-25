@@ -42,6 +42,7 @@ import ProcessingOrders from './pages/processing/ProcessingOrders';
 import ProcessingBills from './pages/processing/ProcessingBills';
 import ProcessingMaterialTracking from './pages/processing/ProcessingMaterialTracking';
 import FinanceModule from './pages/finance/FinanceModule';
+import OwnerCapitalManagement from './pages/finance/OwnerCapitalManagement';
 import TeamManagement from './pages/team/TeamManagement';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -148,6 +149,11 @@ export default function App() {
           <Route path="finance/expenses" element={<FinanceModule />} />
           <Route path="finance/profitability" element={<FinanceModule />} />
           <Route path="finance/reports" element={<FinanceModule />} />
+          <Route path="finance/capital" element={<OwnerCapitalManagement />} />
+          <Route path="finance/drawings" element={<OwnerCapitalManagement />} />
+          <Route path="capital" element={<OwnerCapitalManagement />} />
+          <Route path="drawings" element={<OwnerCapitalManagement />} />
+          <Route path="owner-capital" element={<OwnerCapitalManagement />} />
 
           {/* Team Members, Performance & RBAC Access Management */}
           <Route path="team" element={<TeamManagement />} />
