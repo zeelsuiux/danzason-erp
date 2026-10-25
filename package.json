@@ -1,0 +1,23 @@
+{
+  "name": "danzason-erp-purchase-module",
+  "version": "1.0.0",
+  "description": "Danza-son ERP Procurement & Purchasing Module (React + Node.js + MongoDB)",
+  "scripts": {
+    "build": "cd frontend && npm run build",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run preview",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "erp",
+    "procurement",
+    "purchase-module",
+    "react",
+    "nodejs",
+    "mongodb"
+  ],
+  "author": "Danza-son ERP",
+  "license": "ISC"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "danzason-backend",
+  "version": "1.0.0",
+  "description": "Danza-son ERP Purchase Module Backend API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed/seedData.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "mongoose": "^8.7.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.0.0",
+    "playwright-core": "^1.64.1"
+  }
+}
