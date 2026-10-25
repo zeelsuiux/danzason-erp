@@ -44,7 +44,7 @@ export default function Navbar({ onToggleSidebar }) {
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
-          className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 md:hidden transition"
+          className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 lg:hidden transition"
         >
           <Menu className="w-5 h-5" />
         </button>

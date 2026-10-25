@@ -15,6 +15,9 @@ const upsellRoutes = require('./routes/upsellRoutes');
 const repeatOrderRoutes = require('./routes/repeatOrderRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
 const marketingRoutes = require('./routes/marketingRoutes');
+const salesForecastRoutes = require('./routes/salesForecastRoutes');
+const capitalRoutes = require('./routes/capitalRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
@@ -86,6 +89,38 @@ app.use('/api/v1/sales/complaints', complaintRoutes);
 app.use('/api/v1/marketing', marketingRoutes);
 app.use('/api/marketing', marketingRoutes);
 app.use('/api/v1/sales/marketing', marketingRoutes);
+
+// Sales & Business Forecasting
+app.use('/api/v1/sales/forecasting', salesForecastRoutes);
+app.use('/api/sales/forecasting', salesForecastRoutes);
+app.use('/api/v1/sales/forecast', salesForecastRoutes);
+app.use('/api/sales/forecast', salesForecastRoutes);
+app.use('/api/v1/forecasting', salesForecastRoutes);
+app.use('/api/forecasting', salesForecastRoutes);
+app.use('/api/v1/forecast', salesForecastRoutes);
+app.use('/api/forecast', salesForecastRoutes);
+
+// Owner Withdrawal & Capital Management (Module #20)
+app.use('/api/v1/finance/capital', capitalRoutes);
+app.use('/api/finance/capital', capitalRoutes);
+app.use('/api/v1/capital', capitalRoutes);
+app.use('/api/capital', capitalRoutes);
+app.use('/api/v1/finance/drawings', capitalRoutes);
+app.use('/api/finance/drawings', capitalRoutes);
+app.use('/api/v1/drawings', capitalRoutes);
+app.use('/api/drawings', capitalRoutes);
+
+// Browser direct UI navigation redirects
+app.get(['/sales/forecasting', '/forecasting', '/sales/forecast', '/forecast'], (req, res) => {
+  res.redirect('http://localhost:3000/sales/forecasting');
+});
+app.get(['/finance/capital', '/finance/drawings', '/capital', '/drawings', '/owner-capital'], (req, res) => {
+  res.redirect('http://localhost:3000/finance/capital');
+});
+
+// Business Overview & CEO Dashboard
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 handler
 app.use((req, res) => {

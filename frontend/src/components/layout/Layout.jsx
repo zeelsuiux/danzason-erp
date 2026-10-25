@@ -13,7 +13,7 @@ export default function Layout() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content wrapper */}
-      <div className="flex-1 md:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         <main className="flex-1 px-4 sm:px-6 py-5 sm:py-6 w-full space-y-6">
           <ErrorBoundary>

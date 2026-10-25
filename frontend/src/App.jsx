@@ -26,7 +26,9 @@ import SalesReturns from './pages/sales/SalesReturns';
 import UpsellCrossSellManagement from './pages/sales/UpsellCrossSellManagement';
 import RepeatOrderManagement from './pages/sales/RepeatOrderManagement';
 import ComplaintManagement from './pages/customerService/ComplaintManagement';
+import SalesForecasting from './pages/sales/SalesForecasting';
 import MarketingDashboard from './pages/marketing/MarketingDashboard';
+import CeoCommandCenter from './pages/dashboard/CeoCommandCenter';
 import ProductsList from './pages/products/ProductsList';
 import ProductStockLedger from './pages/products/ProductStockLedger';
 import RawMaterialCatalog from './pages/rawMaterials/RawMaterialCatalog';
@@ -55,6 +57,10 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/register" element={<Navigate to="/signup" replace />} />
+          <Route path="/api/v1/sales/forecasting" element={<Navigate to="/sales/forecasting" replace />} />
+          <Route path="/api/sales/forecasting" element={<Navigate to="/sales/forecasting" replace />} />
+          <Route path="/api/v1/forecasting" element={<Navigate to="/sales/forecasting" replace />} />
+          <Route path="/api/forecasting" element={<Navigate to="/sales/forecasting" replace />} />
 
           {/* Protected Danza Son Admin & Procurement ERP Layout */}
           <Route
@@ -65,7 +71,9 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-          <Route index element={<Navigate to="/sales/quotations" replace />} />
+          <Route index element={<CeoCommandCenter />} />
+          <Route path="dashboard" element={<CeoCommandCenter />} />
+          <Route path="ceo-command-center" element={<CeoCommandCenter />} />
           
           {/* Products Catalog & Stock Ledger */}
           <Route path="products" element={<ProductsList />} />
@@ -127,6 +135,10 @@ export default function App() {
           <Route path="sales/complaints" element={<ComplaintManagement />} />
           <Route path="customer-service" element={<ComplaintManagement />} />
           <Route path="complaints" element={<ComplaintManagement />} />
+          <Route path="sales/forecasting" element={<SalesForecasting />} />
+          <Route path="sales/forecast" element={<SalesForecasting />} />
+          <Route path="forecasting" element={<SalesForecasting />} />
+          <Route path="forecast" element={<SalesForecasting />} />
 
           {/* Finance & Accounts Management */}
           <Route path="finance" element={<FinanceModule />} />

@@ -42,4 +42,8 @@ router.get('/applications/:id', crmController.getOrderRequestById);
 router.put('/applications/:id/status', salesController.updateSalesOrderStatus);
 router.patch('/applications/:id/status', salesController.updateSalesOrderStatus);
 
+// Sales & Business Forecasting
+router.use('/forecasting', require('./salesForecastRoutes'));
+router.use('/forecast', require('./salesForecastRoutes'));
+
 module.exports = router;

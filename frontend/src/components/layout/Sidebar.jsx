@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
+  LayoutDashboard,
   Users,
   Settings,
   MessageSquareDiff,
@@ -22,12 +23,18 @@ import {
   RotateCw,
   Headphones,
   Megaphone,
+  TrendingUp,
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
-  // 0. Marketing & Growth
+  // 1. Executive Suite (CEO Command Center)
+  const executiveMenuItems = [
+    { name: 'CEO Command Center', path: '/dashboard', icon: LayoutDashboard },
+  ];
+
+  // 2. Marketing & Growth
   const marketingMenuItems = [
     { name: 'Marketing Dashboard', path: '/marketing', icon: Megaphone },
   ];
@@ -60,7 +67,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   // 4. Sales & CRM
   const salesMenuItems = [
-    { name: 'Marketing Dashboard', path: '/marketing', icon: Megaphone },
+    { name: 'Sales / Business Forecasting', path: '/sales/forecasting', icon: TrendingUp },
     { name: 'Leads & Follow-ups', path: '/sales/leads', icon: UserPlus },
     { name: 'Customers', path: '/sales/customers', icon: UserCheck },
     { name: 'Sales Orders', path: '/sales/quotations', icon: ShoppingBag },
@@ -126,14 +133,14 @@ export default function Sidebar({ isOpen, onClose }) {
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-30 md:hidden"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-30 lg:hidden"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 w-64 bg-gradient-to-b from-slate-950 via-[#0b1329] to-slate-950 text-slate-300 z-40 transition-transform duration-200 ease-in-out md:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        className={`fixed top-0 bottom-0 left-0 w-64 bg-gradient-to-b from-slate-950 via-[#0b1329] to-slate-950 text-slate-300 z-40 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } flex flex-col border-r border-slate-800/80 shadow-2xl`}
       >
         {/* Brand Header */}
@@ -155,6 +162,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Navigation Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-800">
+          {/* Executive Suite */}
+          {renderNavGroup('Executive Suite', executiveMenuItems)}
+
           {/* Marketing & Growth */}
           {renderNavGroup('Marketing & Growth', marketingMenuItems)}
 
