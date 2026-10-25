@@ -10,7 +10,10 @@ const externalCrmRoutes = require('./routes/externalCrmRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const leadRoutes = require('./routes/leadRoutes');
 const teamRoutes = require('./routes/teamRoutes');
+const teamController = require('./controllers/teamController');
 const upsellRoutes = require('./routes/upsellRoutes');
+const repeatOrderRoutes = require('./routes/repeatOrderRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -38,6 +41,10 @@ app.get('/api/v1/health', (req, res) => {
 app.use('/api/admin', externalCrmRoutes);
 app.use('/api/v1/admin', externalCrmRoutes);
 
+// Authentication & User Management
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+
 // Danza-son Core ERP Routes
 app.use('/api/v1/purchase', purchaseRoutes);
 app.use('/api/v1/sales', salesRoutes);
@@ -50,9 +57,21 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/v1/sales/leads', leadRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/team', teamRoutes);
+
+// Direct /api/v1/hierarchy and /api/hierarchy aliases
+const directHierarchyRouter = express.Router();
+directHierarchyRouter.get('/', teamController.getHierarchyLevels);
+directHierarchyRouter.post('/', teamController.createHierarchyLevel);
+directHierarchyRouter.put('/:id?', teamController.updateHierarchyLevel);
+directHierarchyRouter.delete('/:id?', teamController.deleteHierarchyLevel);
+app.use('/api/v1/hierarchy', directHierarchyRouter);
+app.use('/api/hierarchy', directHierarchyRouter);
 app.use('/api/v1/sales/upsell', upsellRoutes);
 app.use('/api/v1/upsell', upsellRoutes);
 app.use('/api/upsell', upsellRoutes);
+app.use('/api/v1/sales/repeat-orders', repeatOrderRoutes);
+app.use('/api/v1/repeat-orders', repeatOrderRoutes);
+app.use('/api/repeat-orders', repeatOrderRoutes);
 
 // 404 handler
 app.use((req, res) => {

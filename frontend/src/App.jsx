@@ -18,13 +18,13 @@ import PurchaseReturnForm from './pages/purchase/PurchaseReturnForm';
 import PurchaseSettings from './pages/purchase/PurchaseSettings';
 import CustomersDirectory from './pages/sales/CustomersDirectory';
 import CustomerDetail from './pages/sales/CustomerDetail';
-import SalesApplications from './pages/sales/SalesApplications';
 import LeadManagement from './pages/sales/LeadManagement';
 import SalesOrders from './pages/sales/SalesOrders';
 import SalesInvoices from './pages/sales/SalesInvoices';
 import InvoiceEdit from './pages/sales/InvoiceEdit';
 import SalesReturns from './pages/sales/SalesReturns';
 import UpsellCrossSellManagement from './pages/sales/UpsellCrossSellManagement';
+import RepeatOrderManagement from './pages/sales/RepeatOrderManagement';
 import ProductsList from './pages/products/ProductsList';
 import ProductStockLedger from './pages/products/ProductStockLedger';
 import RawMaterialCatalog from './pages/rawMaterials/RawMaterialCatalog';
@@ -39,13 +39,30 @@ import ProcessingBills from './pages/processing/ProcessingBills';
 import ProcessingMaterialTracking from './pages/processing/ProcessingMaterialTracking';
 import FinanceModule from './pages/finance/FinanceModule';
 import TeamManagement from './pages/team/TeamManagement';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/common/ProtectedRoute';
+import LoginPage from './pages/auth/LoginPage';
+import SignupPage from './pages/auth/SignupPage';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Danza Son Admin & Procurement ERP Layout */}
-        <Route path="/" element={<Layout />}>
+      <AuthProvider>
+        <Routes>
+          {/* Public Authentication Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/register" element={<Navigate to="/signup" replace />} />
+
+          {/* Protected Danza Son Admin & Procurement ERP Layout */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
           <Route index element={<Navigate to="/sales/quotations" replace />} />
           
           {/* Products Catalog & Stock Ledger */}
@@ -84,8 +101,8 @@ export default function App() {
           <Route path="sales/leads" element={<LeadManagement />} />
           <Route path="leads" element={<LeadManagement />} />
           <Route path="sales/followups" element={<LeadManagement />} />
-          <Route path="sales/applications" element={<SalesApplications />} />
-          <Route path="sales-applications" element={<SalesApplications />} />
+          <Route path="sales/applications" element={<Navigate to="/sales/leads" replace />} />
+          <Route path="sales-applications" element={<Navigate to="/sales/leads" replace />} />
           <Route path="sales/customers" element={<CustomersDirectory />} />
           <Route path="sales/customers/:id" element={<CustomerDetail />} />
           <Route path="sales/quotations" element={<SalesOrders />} />
@@ -96,6 +113,9 @@ export default function App() {
           <Route path="sales/upsell" element={<UpsellCrossSellManagement />} />
           <Route path="sales/upsell-cross-sell" element={<UpsellCrossSellManagement />} />
           <Route path="upsell" element={<UpsellCrossSellManagement />} />
+          <Route path="sales/repeat-orders" element={<RepeatOrderManagement />} />
+          <Route path="sales/repeat" element={<RepeatOrderManagement />} />
+          <Route path="repeat-orders" element={<RepeatOrderManagement />} />
 
           {/* Finance & Accounts Management */}
           <Route path="finance" element={<FinanceModule />} />
@@ -155,7 +175,8 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/sales/orders" replace />} />
         </Route>
-      </Routes>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

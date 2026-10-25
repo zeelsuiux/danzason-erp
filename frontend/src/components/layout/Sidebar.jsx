@@ -4,7 +4,6 @@ import {
   Users,
   Settings,
   MessageSquareDiff,
-  ClipboardList,
   ShoppingCart,
   Receipt,
   RotateCcw,
@@ -20,6 +19,7 @@ import {
   UserPlus,
   Award,
   Sparkles,
+  RotateCw,
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -54,11 +54,11 @@ export default function Sidebar({ isOpen, onClose }) {
   // 4. Sales & CRM
   const salesMenuItems = [
     { name: 'Leads & Follow-ups', path: '/sales/leads', icon: UserPlus },
-    { name: 'CRM Applications', path: '/sales/applications', icon: ClipboardList },
     { name: 'Customers', path: '/sales/customers', icon: UserCheck },
     { name: 'Sales Orders', path: '/sales/quotations', icon: ShoppingBag },
     { name: 'Sales Invoices', path: '/sales/invoices', icon: Receipt },
     { name: 'Upsell & Cross-sell', path: '/sales/upsell', icon: Sparkles },
+    { name: 'Repeat Orders', path: '/sales/repeat-orders', icon: RotateCw },
   ];
 
   // 5. Finance
