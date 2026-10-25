@@ -27,6 +27,11 @@ import {
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
+  // 0. Marketing & Growth
+  const marketingMenuItems = [
+    { name: 'Marketing Dashboard', path: '/marketing', icon: Megaphone },
+  ];
+
   // 1. Purchase (Raw Material & Products combined)
   const purchaseMenuItems = [
     { name: 'Suppliers', path: '/purchase/suppliers', icon: Users },
@@ -150,6 +155,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Navigation Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-800">
+          {/* Marketing & Growth */}
+          {renderNavGroup('Marketing & Growth', marketingMenuItems)}
+
           {/* 1. Purchase (Raw Material & Products combined) */}
           {renderNavGroup('Purchase', purchaseMenuItems)}
 
