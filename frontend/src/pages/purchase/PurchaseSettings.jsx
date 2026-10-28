@@ -1358,7 +1358,7 @@ export default function PurchaseSettings() {
             }`}
           >
             <Landmark className="w-4 h-4" />
-            <span>Bank Accounts (બેંક એકાઉન્ટ્સ)</span>
+            <span>Bank Accounts</span>
             <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 font-mono font-bold">
               {bankAccounts.length}
             </span>
@@ -2079,7 +2079,7 @@ export default function PurchaseSettings() {
                   <ArrowDownLeft className="w-6 h-6" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-emerald-800">Default Receiving (ગ્રાહક આવક)</div>
+                  <div className="text-xs font-semibold text-emerald-800">Default Receiving (Customer Inflow)</div>
                   <div className="text-sm font-bold text-slate-900 truncate">
                     {baSummary?.default_receiving?.account_name || 'None Set'}
                   </div>
@@ -2094,7 +2094,7 @@ export default function PurchaseSettings() {
                   <ArrowUpRight className="w-6 h-6" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-blue-800">Default Paying (વેન્ડર ચુકવણી)</div>
+                  <div className="text-xs font-semibold text-blue-800">Default Paying (Vendor Outflow)</div>
                   <div className="text-sm font-bold text-slate-900 truncate">
                     {baSummary?.default_payment?.account_name || 'None Set'}
                   </div>
@@ -2151,7 +2151,7 @@ export default function PurchaseSettings() {
                   className="px-4 py-2 rounded-lg bg-brand text-white font-bold text-xs hover:bg-brand-600 transition flex items-center gap-2 shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Bank Account (નવું એકાઉન્ટ ઉમેરો)
+                  Add Bank Account
                 </button>
               </div>
             </div>
@@ -2280,7 +2280,7 @@ export default function PurchaseSettings() {
                       {row.is_default_receiving ? (
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>Receiving Default (ગ્રાહક આવક)</span>
+                          <span>Receiving Default</span>
                         </div>
                       ) : (
                         <div>
@@ -2298,7 +2298,7 @@ export default function PurchaseSettings() {
                       {row.is_default_payment ? (
                         <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200 shadow-2xs">
                           <CheckCircle2 className="w-3 h-3 text-blue-600" />
-                          <span>Paying Default (વેન્ડર ચુકવણી)</span>
+                          <span>Paying Default</span>
                         </div>
                       ) : (
                         <div>
@@ -3200,7 +3200,7 @@ export default function PurchaseSettings() {
       <Modal
         isOpen={isBaModalOpen}
         onClose={() => setIsBaModalOpen(false)}
-        title={editingBa ? `Edit Bank Account: ${editingBa.account_name}` : 'Add Company Bank Account (નવું બેંક એકાઉન્ટ)'}
+        title={editingBa ? `Edit Bank Account: ${editingBa.account_name}` : 'Add Company Bank Account'}
         subtitle="Manage Danza-Son operational current accounts, OD credit limits, factory cash vaults and UPI handles used across Sales Receipts & Vendor Disbursements."
         size="lg"
       >
@@ -3252,10 +3252,10 @@ export default function PurchaseSettings() {
                 onChange={(e) => setBaFormData({ ...baFormData, account_type: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none bg-white font-medium"
               >
-                <option value="current">Current Account (મુખ્ય કરંટ એકાઉન્ટ)</option>
-                <option value="savings">Savings Account (બચત એકાઉન્ટ)</option>
+                <option value="current">Current Account (Operating Account)</option>
+                <option value="savings">Savings Account (Reserve Account)</option>
                 <option value="overdraft_cc">Cash Credit / Overdraft (CC / OD Limit)</option>
-                <option value="cash">Cash Vault / Petty Cash (રોકડ તિજોરી / કેશ ડ્રોઅર)</option>
+                <option value="cash">Cash Vault / Petty Cash (Cash Drawer)</option>
                 <option value="upi">Corporate UPI / Payment Gateway Wallet</option>
               </select>
             </div>
@@ -3363,7 +3363,7 @@ export default function PurchaseSettings() {
                 className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer mt-0.5"
               />
               <label htmlFor="ba_default_receiving" className="text-xs cursor-pointer">
-                <span className="font-bold text-emerald-800">Set as Primary Receiving Account (ગ્રાહક આવક)</span>
+                <span className="font-bold text-emerald-800">Set as Primary Receiving Account (Customer Receipts)</span>
                 <span className="block text-slate-500 text-[11px]">
                   When recording incoming payment from customer sales invoices, this account will be automatically pre-selected.
                 </span>
@@ -3379,7 +3379,7 @@ export default function PurchaseSettings() {
                 className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer mt-0.5"
               />
               <label htmlFor="ba_default_payment" className="text-xs cursor-pointer">
-                <span className="font-bold text-blue-800">Set as Primary Paying Account (વેન્ડર ચુકવણી)</span>
+                <span className="font-bold text-blue-800">Set as Primary Paying Account (Vendor Disbursements)</span>
                 <span className="block text-slate-500 text-[11px]">
                   When recording outgoing payment for purchase bills to suppliers/contractors, this account will be automatically pre-selected.
                 </span>

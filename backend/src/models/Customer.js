@@ -74,6 +74,11 @@ const customerSchema = new mongoose.Schema(
       type: String,
       default: 'General',
     },
+    reference: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     categories: {
       type: [String],
       default: ['General'],

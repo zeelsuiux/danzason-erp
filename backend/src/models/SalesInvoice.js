@@ -159,10 +159,22 @@ const salesInvoiceSchema = new mongoose.Schema(
       {
         amount: { type: Number, required: true },
         payment_date: { type: Date, default: Date.now },
+        payment_time: { type: String, default: '' },
+        payment_datetime: { type: Date, default: Date.now },
         payment_mode: { type: String, default: 'Cash' },
         reference_number: { type: String, default: '' },
         notes: { type: String, default: '' },
         created_at: { type: Date, default: Date.now },
+        time_corrected: { type: Boolean, default: false },
+        correction_history: [
+          {
+            previous_datetime: { type: Date },
+            new_datetime: { type: Date },
+            reason: { type: String, default: '' },
+            corrected_by: { type: String, default: '' },
+            corrected_at: { type: Date, default: Date.now },
+          },
+        ],
       },
     ],
     notes: {

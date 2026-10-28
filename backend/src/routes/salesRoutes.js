@@ -25,6 +25,7 @@ router.post('/invoices/from-order', salesController.createSalesInvoiceFromOrder)
 router.put('/invoices/:id', salesController.updateSalesInvoice);
 router.put('/invoices/:id/due-date', salesController.updateSalesInvoiceDueDate);
 router.post('/invoices/:id/payment', salesController.recordSalesInvoicePayment);
+router.put('/invoices/:id/payments/:paymentIndex/time', salesController.correctPaymentTime);
 
 // Sales Returns
 router.get('/returns', salesController.getSalesReturns);

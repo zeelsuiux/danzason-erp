@@ -47,6 +47,7 @@ export default function CustomersDirectory() {
     customer_name: '',
     company_name: '',
     contact_person: '',
+    reference: '',
     email: '',
     mobile: '',
     gstin: '',
@@ -123,6 +124,7 @@ export default function CustomersDirectory() {
       customer_name: cust.customer_name || '',
       company_name: cust.company_name || '',
       contact_person: cust.contact_person || '',
+      reference: cust.reference || '',
       email: cust.email || '',
       mobile: cust.mobile || '',
       gstin: cust.gstin || '',
@@ -263,6 +265,15 @@ export default function CustomersDirectory() {
       ),
     },
     {
+      header: 'Reference',
+      key: 'reference',
+      render: (val) => (
+        <span className="text-xs text-slate-700 font-medium">
+          {val || <span className="text-slate-400 italic">None</span>}
+        </span>
+      ),
+    },
+    {
       header: 'Outstanding Balance',
       key: 'pending_balance',
       render: (val) => (
@@ -330,6 +341,15 @@ export default function CustomersDirectory() {
           <p className="text-xs font-medium text-slate-800">{addr?.city || '—'}</p>
           <p className="text-[11px] text-slate-400">{addr?.state || 'Gujarat'}</p>
         </div>
+      ),
+    },
+    {
+      header: 'Reference',
+      key: 'reference',
+      render: (val) => (
+        <span className="text-xs text-slate-700 font-medium">
+          {val || <span className="text-slate-400 italic">None</span>}
+        </span>
       ),
     },
     {
@@ -529,6 +549,17 @@ export default function CustomersDirectory() {
                 value={formData.contact_person}
                 onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
                 placeholder="e.g. Ghanshyam Patel"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1 text-sm">Reference</label>
+              <input
+                type="text"
+                value={formData.reference}
+                onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                placeholder="e.g. Sales Executive / Referral / Campaign"
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-brand outline-none"
               />
             </div>

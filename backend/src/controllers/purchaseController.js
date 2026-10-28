@@ -588,7 +588,17 @@ exports.deleteInquiry = async (req, res) => {
 exports.updateSupplierQuotationStatus = async (req, res) => {
   try {
     const { id, supplierId } = req.params;
-    const { status, quoted_price, quoted_delivery_date, quoted_remarks, accept_reason, reject_reason } = req.body;
+    const {
+      status,
+      quoted_price,
+      quoted_delivery_date,
+      quoted_remarks,
+      accept_reason,
+      reject_reason,
+      rejection_message,
+      rejected_by_name,
+      send_message,
+    } = req.body;
 
     const inquiry = await PurchaseInquiry.findById(id);
     if (!inquiry) return res.status(404).json({ success: false, message: 'Inquiry not found' });
@@ -608,6 +618,17 @@ exports.updateSupplierQuotationStatus = async (req, res) => {
     if (accept_reason !== undefined) inquiry.suppliers[suppIdx].accept_reason = accept_reason;
     if (reject_reason !== undefined) inquiry.suppliers[suppIdx].reject_reason = reject_reason;
 
+    if (status === 'rejected') {
+      inquiry.suppliers[suppIdx].rejected_at = new Date();
+      inquiry.suppliers[suppIdx].rejected_by = req.user ? req.user._id : null;
+      inquiry.suppliers[suppIdx].rejected_by_name = rejected_by_name || (req.user ? req.user.name : 'Authorized Purchaser');
+      if (rejection_message) inquiry.suppliers[suppIdx].rejection_message = rejection_message;
+      if (send_message) {
+        inquiry.suppliers[suppIdx].rejection_message_status = 'sent';
+        inquiry.suppliers[suppIdx].rejection_message_sent_at = new Date();
+      }
+    }
+
     if (status === 'accepted') {
       inquiry.status = 'awarded';
       // Automatically reject all other competing quotations under this inquiry
@@ -615,6 +636,9 @@ exports.updateSupplierQuotationStatus = async (req, res) => {
         if (idx !== suppIdx) {
           s.status = 'rejected';
           s.reject_reason = 'Auto rejected - competing supplier quotation awarded';
+          s.rejected_at = new Date();
+          s.rejected_by = req.user ? req.user._id : null;
+          s.rejected_by_name = 'System Auto-Award';
         }
       });
     }
@@ -1282,10 +1306,22 @@ exports.getInvoices = async (req, res) => {
     const query = { is_deleted: false };
 
     if (search) {
+      const matchingSuppliers = await Supplier.find({
+        $or: [
+          { supplier_name: { $regex: search, $options: 'i' } },
+          { supplier_code: { $regex: search, $options: 'i' } },
+        ],
+      }).select('_id');
+      const supplierIds = matchingSuppliers.map((s) => s._id);
+
       query.$or = [
         { invoice_number: { $regex: search, $options: 'i' } },
         { vendor_bill_number: { $regex: search, $options: 'i' } },
         { supplier_invoice_number: { $regex: search, $options: 'i' } },
+        { challan_number: { $regex: search, $options: 'i' } },
+        { supplier_id: { $in: supplierIds } },
+        { 'items.product_name': { $regex: search, $options: 'i' } },
+        { 'items.sku': { $regex: search, $options: 'i' } },
       ];
     }
     if (status) query.status = status;
@@ -1639,6 +1675,8 @@ exports.updateInvoice = async (req, res) => {
 
     if (vendor_bill_number !== undefined) invoice.vendor_bill_number = vendor_bill_number;
     if (supplier_invoice_number !== undefined) invoice.supplier_invoice_number = supplier_invoice_number;
+    if (challan_number !== undefined) invoice.challan_number = challan_number;
+    if (challan_date !== undefined) invoice.challan_date = challan_date;
     if (supplier_invoice_date !== undefined) invoice.supplier_invoice_date = supplier_invoice_date;
     if (bill_date !== undefined) invoice.bill_date = bill_date;
     if (due_date !== undefined) invoice.due_date = due_date;

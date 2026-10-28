@@ -21,6 +21,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const targetGoalRoutes = require('./routes/targetGoalRoutes');
 const bankAccountRoutes = require('./routes/bankAccountRoutes');
 const authRoutes = require('./routes/authRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
 
@@ -138,6 +139,10 @@ app.use('/api/v1/finance/bank-accounts', bankAccountRoutes);
 app.use('/api/finance/bank-accounts', bankAccountRoutes);
 app.use('/api/v1/settings/bank-accounts', bankAccountRoutes);
 app.use('/api/settings/bank-accounts', bankAccountRoutes);
+
+// AI Assistance (Suppliers & Customers)
+app.use('/api/v1/ai', aiRoutes);
+app.use('/api/ai', aiRoutes);
 
 // 404 handler
 app.use((req, res) => {

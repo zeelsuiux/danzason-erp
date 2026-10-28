@@ -1498,6 +1498,20 @@ exports.recordSalesInvoicePayment = async (req, res) => {
 
     let addedPayment = 0;
 
+    let finalDatetime = new Date();
+    if (req.body.payment_datetime) {
+      finalDatetime = new Date(req.body.payment_datetime);
+    } else if (payment_date) {
+      finalDatetime = new Date(payment_date);
+      if (req.body.payment_time) {
+        const [h, m] = req.body.payment_time.split(':');
+        if (!isNaN(h) && !isNaN(m)) {
+          finalDatetime.setHours(Number(h), Number(m), 0, 0);
+        }
+      }
+    }
+    const finalTimeString = req.body.payment_time || finalDatetime.toTimeString().substring(0, 5);
+
     if (is_split_payment) {
       const cash = Number(split_cash) || 0;
       const online = Number(split_online) || 0;
@@ -1507,7 +1521,9 @@ exports.recordSalesInvoicePayment = async (req, res) => {
       if (cash > 0) {
         invoice.payments.push({
           amount: cash,
-          payment_date: payment_date ? new Date(payment_date) : new Date(),
+          payment_date: finalDatetime,
+          payment_datetime: finalDatetime,
+          payment_time: finalTimeString,
           payment_mode: 'Cash',
           reference_number: reference_number ? `${reference_number} (Cash)` : 'Cash',
           notes: notes || 'Split Payment - Cash',
@@ -1517,7 +1533,9 @@ exports.recordSalesInvoicePayment = async (req, res) => {
       if (online > 0) {
         invoice.payments.push({
           amount: online,
-          payment_date: payment_date ? new Date(payment_date) : new Date(),
+          payment_date: finalDatetime,
+          payment_datetime: finalDatetime,
+          payment_time: finalTimeString,
           payment_mode: 'UPI / Online',
           reference_number: reference_number ? `${reference_number} (UPI)` : 'UPI / Online',
           notes: notes || 'Split Payment - Online',
@@ -1531,7 +1549,9 @@ exports.recordSalesInvoicePayment = async (req, res) => {
       }
       invoice.payments.push({
         amount: paymentAmount,
-        payment_date: payment_date ? new Date(payment_date) : new Date(),
+        payment_date: finalDatetime,
+        payment_datetime: finalDatetime,
+        payment_time: finalTimeString,
         payment_mode: payment_mode || 'Bank Transfer',
         reference_number: reference_number || '',
         notes: notes || '',
@@ -1596,7 +1616,7 @@ exports.recordSalesInvoicePayment = async (req, res) => {
         transaction_type: 'income',
         entry_source: 'sales_bill',
         amount: addedPayment,
-        transaction_date: payment_date ? new Date(payment_date) : new Date(),
+        transaction_date: finalDatetime,
         category: 'Sales Invoice Payment',
         party_name: invoice.customer_id?.customer_name || 'Customer',
         party_type: 'customer',
@@ -2107,4 +2127,71 @@ exports.createSalesReturn = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * Requirement 10: Correct and manage payment received timestamp with audit trail
+ * PUT /api/v1/sales/invoices/:id/payments/:paymentIndex/time
+ */
+exports.correctPaymentTime = async (req, res) => {
+  try {
+    const { id, paymentIndex } = req.params;
+    const { new_datetime, reason = 'Time adjustment', corrected_by = 'Authorized User' } = req.body;
+
+    const invoice = await SalesInvoice.findById(id);
+    if (!invoice) return res.status(404).json({ success: false, message: 'Sales invoice not found' });
+
+    const pIdx = parseInt(paymentIndex, 10);
+    if (isNaN(pIdx) || !invoice.payments || !invoice.payments[pIdx]) {
+      return res.status(404).json({ success: false, message: 'Payment record not found at index' });
+    }
+
+    const payment = invoice.payments[pIdx];
+    const prevDatetime = payment.payment_datetime || payment.payment_date || new Date();
+    const updatedDatetime = new Date(new_datetime || Date.now());
+
+    if (!payment.correction_history) payment.correction_history = [];
+    payment.correction_history.push({
+      previous_datetime: prevDatetime,
+      new_datetime: updatedDatetime,
+      reason,
+      corrected_by,
+      corrected_at: new Date(),
+    });
+
+    payment.payment_datetime = updatedDatetime;
+    payment.payment_date = updatedDatetime;
+    payment.payment_time = updatedDatetime.toTimeString().substring(0, 5);
+    payment.time_corrected = true;
+
+    await invoice.save();
+
+    // Auto-reflect changes in the corresponding Finance transaction without creating duplicates
+    try {
+      const FinanceTransaction = require('../models/FinanceTransaction');
+      await FinanceTransaction.findOneAndUpdate(
+        {
+          bill_id: invoice._id,
+          bill_type: 'sales_invoice',
+          payment_index: pIdx,
+        },
+        {
+          transaction_date: updatedDatetime,
+          description: `${payment.notes || ''} [Time adjusted by ${corrected_by}: ${reason}]`.trim(),
+        }
+      );
+    } catch (finErr) {
+      console.error('Failed to sync updated payment time to FinanceTransaction:', finErr);
+    }
+
+    const populated = await SalesInvoice.findById(id).populate('customer_id');
+    res.json({
+      success: true,
+      message: 'Payment received time corrected successfully and reflected in Finance records',
+      data: populated,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 

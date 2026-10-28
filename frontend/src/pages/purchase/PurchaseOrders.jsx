@@ -284,12 +284,24 @@ export default function PurchaseOrders() {
     (o) => !o.purchase_type || o.purchase_type === 'standard' || o.purchase_type === 'finished'
   );
 
-  const filteredOrders =
+  const tabScopedOrders =
     purchaseTypeTab === 'all'
       ? nonManufacturingOrders
       : purchaseTypeTab === 'raw_material'
       ? rawMaterialOrders
       : finishedOrders;
+
+  const filteredOrders = tabScopedOrders.filter((o) => {
+    if (!search.trim()) return true;
+    const term = search.toLowerCase();
+    const matchPo = o.po_number?.toLowerCase().includes(term);
+    const matchSuppName = o.supplier_id?.supplier_name?.toLowerCase().includes(term);
+    const matchSuppCode = o.supplier_id?.supplier_code?.toLowerCase().includes(term);
+    const matchItems = o.items?.some(
+      (it) => it.product_name?.toLowerCase().includes(term) || it.sku?.toLowerCase().includes(term) || it.description?.toLowerCase().includes(term)
+    );
+    return matchPo || matchSuppName || matchSuppCode || matchItems;
+  });
 
   return (
     <div className="space-y-5 pb-12">

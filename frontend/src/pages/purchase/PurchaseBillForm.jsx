@@ -47,6 +47,8 @@ export default function PurchaseBillForm() {
     invoice_number: '',
     vendor_bill_number: '',
     supplier_invoice_number: '',
+    challan_number: '',
+    challan_date: new Date().toISOString().split('T')[0],
     supplier_invoice_date: new Date().toISOString().split('T')[0],
     bill_date: new Date().toISOString().split('T')[0],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -158,6 +160,10 @@ export default function PurchaseBillForm() {
         invoice_number: bill.invoice_number || '',
         vendor_bill_number: bill.vendor_bill_number || bill.supplier_invoice_number || '',
         supplier_invoice_number: bill.supplier_invoice_number || bill.vendor_bill_number || '',
+        challan_number: bill.challan_number || '',
+        challan_date: bill.challan_date
+          ? new Date(bill.challan_date).toISOString().split('T')[0]
+          : '',
         supplier_invoice_date: bill.supplier_invoice_date
           ? new Date(bill.supplier_invoice_date).toISOString().split('T')[0]
           : bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
@@ -651,6 +657,37 @@ export default function PurchaseBillForm() {
                   className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 />
                 <span className="text-[11px] text-slate-400">Physical bill number from vendor</span>
+              </div>
+
+              {/* Requirement 6: Challan Number */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600">
+                  Challan Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. CH-2026-001 (Goods dispatch)"
+                  value={formData.challan_number || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      challan_number: e.target.value,
+                    })
+                  }
+                  className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <span className="text-[11px] text-slate-400">Delivery / Dispatch Challan</span>
+              </div>
+
+              {/* Challan Date */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600">Challan Date</label>
+                <input
+                  type="date"
+                  value={formData.challan_date || ''}
+                  onChange={(e) => setFormData({ ...formData, challan_date: e.target.value })}
+                  className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
               </div>
 
               {/* Supplier Invoice Date */}

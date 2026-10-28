@@ -78,7 +78,7 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
     },
     {
       id: 'inventory',
-      title: 'Inventory & Stock',
+      title: 'Product & Inventory',
       icon: Layers,
       items: [
         { name: 'Products Catalog', path: '/products', icon: Boxes },
@@ -93,7 +93,7 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
       items: [
         { name: 'Finance Overview', path: '/finance', icon: WalletCards },
         { name: 'Owner Capital & Drawings', path: '/finance/capital', icon: Landmark },
-        { name: 'Bank Accounts (બેંક એકાઉન્ટ)', path: '/purchase/settings?tab=bank_accounts', icon: CreditCard },
+        { name: 'Bank Accounts', path: '/purchase/settings?tab=bank_accounts', icon: CreditCard },
       ],
     },
     {
@@ -117,11 +117,155 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
     },
   ];
 
+  // Determine if a specific navigation item is active based on path, subroutes, and query params
+  const isItemActive = (itemPath) => {
+    const currentPath = location.pathname.toLowerCase();
+    const searchParams = new URLSearchParams(location.search);
+    const isManufacturing = searchParams.get('type') === 'manufacturing';
+
+    // Requirement 5: /purchase-orders/create?type=manufacturing activates Job Orders (MPO)
+    if (isManufacturing && (currentPath.includes('purchase-orders') || currentPath.includes('purchase/orders'))) {
+      return itemPath === '/processing/orders';
+    }
+
+    if (itemPath.includes('tab=bank_accounts')) {
+      return (currentPath === '/purchase/settings' || currentPath.startsWith('/settings')) && searchParams.get('tab') === 'bank_accounts';
+    }
+
+    if (itemPath.includes('?')) {
+      const [pathPart, queryPart] = itemPath.split('?');
+      if (currentPath !== pathPart) return false;
+      const itemQuery = new URLSearchParams(queryPart);
+      for (const [key, val] of itemQuery.entries()) {
+        if (searchParams.get(key) !== val) return false;
+      }
+      return true;
+    }
+
+    if (currentPath === itemPath.toLowerCase()) return true;
+
+    // Route groups and deep child links (create, edit, view, details, ledger)
+    if (itemPath === '/purchase/orders') {
+      return (
+        (currentPath.startsWith('/purchase/orders') || currentPath.startsWith('/purchase-orders')) &&
+        !isManufacturing
+      );
+    }
+    if (itemPath === '/purchase/invoices') {
+      return (
+        currentPath.startsWith('/purchase/invoices') ||
+        currentPath.startsWith('/purchase-bills') ||
+        currentPath.startsWith('/purchase/bills')
+      );
+    }
+    if (itemPath === '/purchase/suppliers') {
+      return currentPath.startsWith('/purchase/suppliers') || currentPath.startsWith('/suppliers');
+    }
+    if (itemPath === '/purchase/inquiries') {
+      return currentPath.startsWith('/purchase/inquiries') || currentPath.startsWith('/inquiries');
+    }
+    if (itemPath === '/purchase/returns') {
+      return currentPath.startsWith('/purchase/returns') || currentPath.startsWith('/purchase-returns');
+    }
+    if (itemPath === '/processing/orders') {
+      return (
+        currentPath.startsWith('/processing/orders') ||
+        currentPath.startsWith('/manufacturing/orders') ||
+        (isManufacturing && (currentPath.includes('purchase-orders') || currentPath.includes('purchase/orders')))
+      );
+    }
+    if (itemPath === '/processing/material-tracking') {
+      return currentPath.startsWith('/processing/material-tracking') || currentPath.startsWith('/manufacturing/tracking');
+    }
+    if (itemPath === '/processing/bills') {
+      return currentPath.startsWith('/processing/bills') || currentPath.startsWith('/manufacturing/bills');
+    }
+    if (itemPath === '/processing/contractors') {
+      return currentPath.startsWith('/processing/contractors') || currentPath.startsWith('/manufacturing/contractors');
+    }
+    if (itemPath === '/processing/quotations') {
+      return currentPath.startsWith('/processing/quotations') || currentPath.startsWith('/manufacturing/quotations');
+    }
+    if (itemPath === '/sales/quotations') {
+      return currentPath.startsWith('/sales/quotations') || currentPath.startsWith('/sales/orders') || currentPath === '/sales';
+    }
+    if (itemPath === '/sales/invoices') {
+      return currentPath.startsWith('/sales/invoices');
+    }
+    if (itemPath === '/sales/customers') {
+      return currentPath.startsWith('/sales/customers') || currentPath.startsWith('/customers');
+    }
+    if (itemPath === '/sales/leads') {
+      return currentPath.startsWith('/sales/leads') || currentPath.startsWith('/leads') || currentPath.startsWith('/sales/followups');
+    }
+    if (itemPath === '/sales/forecasting') {
+      return currentPath.startsWith('/sales/forecasting') || currentPath.startsWith('/forecasting') || currentPath.startsWith('/forecast');
+    }
+    if (itemPath === '/sales/repeat-orders') {
+      return currentPath.startsWith('/sales/repeat-orders') || currentPath.startsWith('/repeat-orders');
+    }
+    if (itemPath === '/sales/upsell') {
+      return currentPath.startsWith('/sales/upsell') || currentPath.startsWith('/upsell');
+    }
+    if (itemPath === '/sales/complaints') {
+      return currentPath.startsWith('/sales/complaints') || currentPath.startsWith('/complaints') || currentPath.startsWith('/customer-service');
+    }
+    if (itemPath === '/products') {
+      return (
+        (currentPath.startsWith('/products') || currentPath.startsWith('/sales/products')) &&
+        !currentPath.includes('stock-ledger')
+      );
+    }
+    if (itemPath === '/raw-materials') {
+      return (
+        currentPath.startsWith('/raw-materials') &&
+        !currentPath.includes('stock-ledger') &&
+        !currentPath.includes('/orders') &&
+        !currentPath.includes('/bills')
+      );
+    }
+    if (itemPath === '/raw-materials/stock-ledger') {
+      return currentPath.includes('stock-ledger') || currentPath.includes('/ledger');
+    }
+    if (itemPath === '/finance') {
+      return currentPath.startsWith('/finance') && !currentPath.includes('capital') && !currentPath.includes('drawings');
+    }
+    if (itemPath === '/finance/capital') {
+      return (
+        currentPath.startsWith('/finance/capital') ||
+        currentPath.startsWith('/capital') ||
+        currentPath.startsWith('/drawings') ||
+        currentPath.startsWith('/owner-capital')
+      );
+    }
+    if (itemPath === '/growth/targets') {
+      return currentPath.startsWith('/growth/targets') || currentPath.startsWith('/targets') || currentPath.startsWith('/goals');
+    }
+    if (itemPath === '/marketing') {
+      return currentPath.startsWith('/marketing') || currentPath.startsWith('/sales/marketing');
+    }
+    if (itemPath === '/team') {
+      return currentPath.startsWith('/team');
+    }
+    if (itemPath === '/purchase/settings') {
+      return (
+        (currentPath.startsWith('/purchase/settings') || currentPath.startsWith('/settings')) &&
+        searchParams.get('tab') !== 'bank_accounts'
+      );
+    }
+
+    return currentPath.startsWith(itemPath.toLowerCase());
+  };
+
+  // Check if group contains the active route
+  const isGroupActive = (group) => {
+    return group.items.some((item) => isItemActive(item.path));
+  };
+
   // Determine which group should be open based on the current URL
   const getInitialOpenGroup = () => {
-    const currentPath = location.pathname.toLowerCase();
     for (const group of navigationGroups) {
-      if (group.items.some((item) => currentPath.startsWith(item.path))) {
+      if (isGroupActive(group)) {
         return group.id;
       }
     }
@@ -131,25 +275,18 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
   // State to manage which accordion section is expanded
   const [openGroup, setOpenGroup] = useState(getInitialOpenGroup);
 
-  // Automatically expand group when URL changes
+  // Automatically expand group when URL or query changes
   useEffect(() => {
-    const currentPath = location.pathname.toLowerCase();
     for (const group of navigationGroups) {
-      if (group.items.some((item) => currentPath.startsWith(item.path))) {
+      if (isGroupActive(group)) {
         setOpenGroup(group.id);
         break;
       }
     }
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const toggleGroup = (groupId) => {
     setOpenGroup((prev) => (prev === groupId ? null : groupId));
-  };
-
-  // Check if group contains the active route
-  const isGroupActive = (group) => {
-    const currentPath = location.pathname.toLowerCase();
-    return group.items.some((item) => currentPath.startsWith(item.path));
   };
 
   return (
@@ -281,6 +418,7 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
                   <div className="px-2 pb-2 pt-0.5 space-y-0.5 border-t border-slate-800/50 mt-0.5">
                     {group.items.map((item) => {
                       const ItemIcon = item.icon;
+                      const active = isItemActive(item.path);
                       return (
                         <NavLink
                           key={item.path}
@@ -288,24 +426,18 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
                           onClick={() => {
                             if (window.innerWidth < 1024) onClose();
                           }}
-                          className={({ isActive }) =>
-                            `flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                              isActive
-                                ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                            }`
-                          }
+                          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            active
+                              ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                              : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                          }`}
                         >
-                          {({ isActive }) => (
-                            <>
-                              <ItemIcon
-                                className={`w-3.5 h-3.5 shrink-0 transition-colors ${
-                                  isActive ? 'text-white' : 'text-slate-500'
-                                }`}
-                              />
-                              <span className="truncate">{item.name}</span>
-                            </>
-                          )}
+                          <ItemIcon
+                            className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                              active ? 'text-white' : 'text-slate-500'
+                            }`}
+                          />
+                          <span className="truncate">{item.name}</span>
                         </NavLink>
                       );
                     })}

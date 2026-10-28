@@ -26,6 +26,8 @@ import {
   X,
   MessageSquare,
   QrCode,
+  Sparkles,
+  Copy,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -49,6 +51,7 @@ export default function CustomerDetail() {
     customer_name: '',
     company_name: '',
     contact_person: '',
+    reference: '',
     email: '',
     mobile: '',
     gstin: '',
@@ -92,6 +95,14 @@ export default function CustomerDetail() {
   const [isInvoicePrintOpen, setIsInvoicePrintOpen] = useState(false);
   const [printFormat, setPrintFormat] = useState('a4'); // 'a4' | 'thermal'
 
+  // 5. CUSTOMER AI ASSISTANT MODAL STATE
+  const [isCustomerAiOpen, setIsCustomerAiOpen] = useState(false);
+  const [aiType, setAiType] = useState('payment_reminder');
+  const [aiCustomNotes, setAiCustomNotes] = useState('');
+  const [aiMessage, setAiMessage] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
   useEffect(() => {
     if (!id) {
       navigate('/sales/customers', { replace: true });
@@ -113,6 +124,33 @@ export default function CustomerDetail() {
   };
 
   // -------------------------------------------------------------
+  // CUSTOMER AI ASSISTANT GENERATOR
+  // -------------------------------------------------------------
+  const handleGenerateCustomerAi = async (typeToUse = aiType) => {
+    try {
+      setAiLoading(true);
+      setCopySuccess(false);
+      const res = await fetch('/api/v1/ai/customer-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: typeToUse,
+          customer_id: id,
+          custom_notes: aiCustomNotes,
+        }),
+      });
+      const result = await res.json();
+      if (result.success && result.data?.message) {
+        setAiMessage(result.data.message);
+      }
+    } catch (err) {
+      console.error('Failed to generate AI customer message:', err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // -------------------------------------------------------------
   // HANDLERS FOR EDITING CUSTOMER DETAILS
   // -------------------------------------------------------------
   const handleOpenEditCustomer = () => {
@@ -122,6 +160,7 @@ export default function CustomerDetail() {
       customer_name: cust.customer_name || '',
       company_name: cust.company_name || '',
       contact_person: cust.contact_person || '',
+      reference: cust.reference || '',
       email: cust.email || '',
       mobile: cust.mobile || '',
       gstin: cust.gstin || '',
@@ -352,6 +391,18 @@ export default function CustomerDetail() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => {
+                setIsCustomerAiOpen(true);
+                handleGenerateCustomerAi('payment_reminder');
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition shadow-xs"
+              title="AI Customer Communication Assistant"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>AI Assistant</span>
+            </button>
+            <button
+              type="button"
               onClick={handleOpenEditCustomer}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition shadow-xs"
               title="Edit Customer Profile"
@@ -498,6 +549,9 @@ export default function CustomerDetail() {
             </span>
             <p className="font-semibold text-slate-800 text-sm">{customer.payment_terms || 'Immediate / Advance'}</p>
             <p className="text-xs text-slate-500">Credit Days: {customer.credit_period_days || 30} Days</p>
+            <p className="text-xs text-slate-500">
+              Reference: <span className="text-emerald-700 font-bold">{customer.reference || 'None'}</span>
+            </p>
             <p className="text-xs text-slate-500">
               Total Invoiced: ₹{(metrics.totalInvoiced || 0).toLocaleString('en-IN')}
             </p>
@@ -875,6 +929,17 @@ export default function CustomerDetail() {
                 type="email"
                 value={customerForm.email}
                 onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-brand outline-none text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Reference</label>
+              <input
+                type="text"
+                value={customerForm.reference}
+                onChange={(e) => setCustomerForm({ ...customerForm, reference: e.target.value })}
+                placeholder="e.g. Sales Executive / Referral / Campaign"
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-brand outline-none text-slate-800"
               />
             </div>
@@ -1683,6 +1748,118 @@ export default function CustomerDetail() {
           </div>
         </div>
       )}
+
+      {/* 5. CUSTOMER AI ASSISTANT MODAL */}
+      <Modal
+        isOpen={isCustomerAiOpen}
+        onClose={() => setIsCustomerAiOpen(false)}
+        title={`AI Assistant: Communication with ${customer.customer_name}`}
+        size="lg"
+      >
+        <div className="space-y-4 text-sm">
+          {/* Action Tabs */}
+          <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-xl">
+            {[
+              { id: 'payment_reminder', label: 'Payment Reminder' },
+              { id: 'quotation_followup', label: 'Quotation Follow-up' },
+              { id: 'order_status', label: 'Order Status' },
+              { id: 'summarize_history', label: 'Account Summary' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setAiType(tab.id);
+                  handleGenerateCustomerAi(tab.id);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  aiType === tab.id
+                    ? 'bg-violet-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Optional instructions / Custom notes */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Custom Context or Instructions (Optional)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiCustomNotes}
+                onChange={(e) => setAiCustomNotes(e.target.value)}
+                placeholder="e.g. Please process before end of financial week..."
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-violet-600 outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => handleGenerateCustomerAi(aiType)}
+                disabled={aiLoading}
+                className="px-3.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition flex items-center gap-1.5 shrink-0"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{aiLoading ? 'Regenerating...' : 'Regenerate'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Generated Message (Editable with User Approval) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                Generated Message (Review & Edit before sending)
+              </label>
+              <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                Verified ERP Data Only
+              </span>
+            </div>
+            <textarea
+              rows={8}
+              value={aiMessage}
+              onChange={(e) => setAiMessage(e.target.value)}
+              placeholder="Generating AI message from customer transaction ledger..."
+              className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed font-sans focus:border-violet-600 outline-none resize-none bg-slate-50/50"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
+            <span className="text-xs text-slate-500">
+              Customer Contact: <strong className="font-mono text-slate-800">{customer.mobile || 'No mobile'}</strong>
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(aiMessage);
+                  setCopySuccess(true);
+                  setTimeout(() => setCopySuccess(false), 2500);
+                }}
+                className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center gap-1.5"
+              >
+                {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copySuccess ? 'Copied to Clipboard!' : 'Copy Text'}</span>
+              </button>
+              {customer.mobile && (
+                <a
+                  href={`https://wa.me/91${customer.mobile.replace(/\D/g, '')}?text=${encodeURIComponent(aiMessage)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-xs"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Send via WhatsApp</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

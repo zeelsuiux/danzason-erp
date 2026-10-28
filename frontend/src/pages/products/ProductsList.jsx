@@ -30,6 +30,7 @@ import {
   Lock,
   FileText,
   Warehouse,
+  Calculator,
 } from 'lucide-react';
 import Modal from '../../components/common/Modal';
 import { productApi, ft } from '../../services/procurementService';
@@ -60,6 +61,73 @@ export default function ProductsList() {
   const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [copiedToken, setCopiedToken] = useState(false);
+
+  // Requirement 7: Sales Rate Auto-Management Modal
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [pricingProduct, setPricingProduct] = useState(null);
+  const [pricingRule, setPricingRule] = useState({ method: 'markup', value: 20 });
+  const [manualOverrideRate, setManualOverrideRate] = useState('');
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [pricingLiveCost, setPricingLiveCost] = useState(150);
+
+  const handleOpenPricingModal = async (prod, e) => {
+    if (e) e.stopPropagation();
+    setPricingProduct(prod);
+    setManualOverrideRate('');
+    const pId = prod.product_id || prod._id || prod.id;
+    try {
+      const res = await fetch(`/api/v1/products/${pId}/pricing`);
+      const resData = await res.json();
+      if (resData.success && resData.data) {
+        setPricingLiveCost(resData.data.current_purchase_rate || prod.purchase_rate || 150);
+        setPricingRule({
+          method: resData.data.pricing_rule?.method || 'markup',
+          value: resData.data.pricing_rule?.value !== undefined ? resData.data.pricing_rule.value : 20,
+        });
+      } else {
+        setPricingLiveCost(prod.purchase_rate || 150);
+        setPricingRule(prod.pricing_rule || { method: 'markup', value: 20 });
+      }
+    } catch (err) {
+      setPricingLiveCost(prod.purchase_rate || 150);
+      setPricingRule(prod.pricing_rule || { method: 'markup', value: 20 });
+    }
+    setIsPricingModalOpen(true);
+  };
+
+  const handleSavePricingRule = async (applyToSelling = false) => {
+    if (!pricingProduct) return;
+    const pId = pricingProduct.product_id || pricingProduct._id || pricingProduct.id;
+    try {
+      setPricingSaving(true);
+      const res = await fetch(`/api/v1/products/${pId}/pricing-rule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          method: pricingRule.method,
+          value: Number(pricingRule.value) || 0,
+          apply_to_selling_rate: applyToSelling,
+          manual_override_rate: manualOverrideRate ? Number(manualOverrideRate) : null,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert(
+          applyToSelling
+            ? 'Selling rate updated for future orders. Previously issued historical invoices remain unchanged.'
+            : 'Pricing rule saved successfully.'
+        );
+        setIsPricingModalOpen(false);
+        loadProducts();
+      } else {
+        alert(result.message || 'Failed to update pricing rule');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update pricing rule');
+    } finally {
+      setPricingSaving(false);
+    }
+  };
 
   const toggleRowExpansion = (id, e) => {
     if (e) e.stopPropagation();
@@ -196,14 +264,27 @@ export default function ProductsList() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 leading-tight">
-            ERP Portal
+            Product & Inventory
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-medium">
-            Manage apparel products, bulk pricing, color/size variants, and sync with Danza Son CRM
+            Manage apparel products, suggested sales rates, color/size variants, and warehouse stock
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (products.length > 0) {
+                handleOpenPricingModal(products[0]);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all shadow-xs"
+            title="Sales Rate Auto-Management from Purchase Rate"
+          >
+            <Calculator className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Rate Management</span>
+          </button>
           {/* View Mode Toggle: Grouped Styles vs Color-wise */}
           <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200">
             <button
@@ -1148,6 +1229,27 @@ export default function ProductsList() {
               </div>
             </div>
 
+            {/* Sales Rate Auto-Management trigger */}
+            <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200/60 flex items-center justify-between">
+              <div>
+                <span className="text-emerald-800 font-bold text-xs block">Sales Rate Auto-Management</span>
+                <span className="text-[11px] text-slate-500 font-mono mt-0.5 block">
+                  Purchase Cost: ₹{Number(selectedProduct.purchase_rate || 150).toFixed(2)} | Markup/Margin formula
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  handleOpenPricingModal(selectedProduct);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-2xs"
+              >
+                <Calculator className="w-3.5 h-3.5" />
+                <span>Calculate & Manage</span>
+              </button>
+            </div>
+
             {/* Color Swatches list if available */}
             {selectedProduct.colors && selectedProduct.colors.length > 0 && (
               <div className="pt-2 border-t border-slate-100">
@@ -1292,6 +1394,193 @@ export default function ProductsList() {
           </div>
         </div>
       </Modal>
+
+      {/* REQUIREMENT 7: SALES RATE AUTO-MANAGEMENT MODAL */}
+      {isPricingModalOpen && pricingProduct && (
+        <Modal
+          isOpen={isPricingModalOpen}
+          onClose={() => setIsPricingModalOpen(false)}
+          title={`Sales Rate Management: ${pricingProduct.title || pricingProduct.product_name}`}
+          size="lg"
+        >
+          {(() => {
+            const cost = Number(pricingLiveCost || pricingProduct.purchase_rate || 150);
+            const val = Number(pricingRule.value) || 0;
+            const markupRate = Math.round(cost * (1 + val / 100));
+            const marginRate = val < 100 ? Math.round(cost / (1 - val / 100)) : cost * 2;
+            const suggestedRate = pricingRule.method === 'margin' ? marginRate : markupRate;
+
+            return (
+              <div className="space-y-4 text-xs font-sans text-slate-800">
+                {/* Product Summary Header */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900 uppercase">
+                      {pricingProduct.title || pricingProduct.product_name}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                      Code: {pricingProduct.product_code} | Category: {pricingProduct.category || 'Apparel'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Current Approved Rate</span>
+                    <span className="text-base font-extrabold font-mono text-slate-900">
+                      ₹{Number(pricingProduct.price || pricingProduct.selling_rate || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3 Metrics: Purchase Cost, Cost Rate, Method */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Purchase Rate (Live)</span>
+                    <span className="text-lg font-black font-mono text-blue-700 block mt-0.5">
+                      ₹{cost.toLocaleString('en-IN')}
+                    </span>
+                    <span className="text-[10px] text-slate-400">Fetched from recent purchase bills</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Base Cost Rate</span>
+                    <span className="text-lg font-black font-mono text-slate-800 block mt-0.5">
+                      ₹{cost.toLocaleString('en-IN')}
+                    </span>
+                    <span className="text-[10px] text-slate-400">Inventory valuation base cost</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white border border-emerald-200 bg-emerald-50/30 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-emerald-800 block">Suggested Sales Rate</span>
+                    <span className="text-lg font-black font-mono text-emerald-700 block mt-0.5">
+                      ₹{suggestedRate.toLocaleString('en-IN')}
+                    </span>
+                    <span className="text-[10px] text-emerald-600 font-medium">Auto-computed by formula</span>
+                  </div>
+                </div>
+
+                {/* Formula Mode Selector: Markup vs Margin */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Pricing Calculation Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPricingRule({ ...pricingRule, method: 'markup' })}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        pricingRule.method === 'markup'
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="font-extrabold text-xs block text-slate-900">Markup on Cost</span>
+                      <span className="text-[11px] text-slate-500 font-mono block mt-0.5">
+                        Sales Rate = Cost × (1 + Markup %)
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPricingRule({ ...pricingRule, method: 'margin' })}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        pricingRule.method === 'margin'
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="font-extrabold text-xs block text-slate-900">Profit Margin on Sale</span>
+                      <span className="text-[11px] text-slate-500 font-mono block mt-0.5">
+                        Sales Rate = Cost ÷ (1 − Margin %)
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Percentage Slider / Input */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {pricingRule.method === 'markup' ? 'Markup Percentage (%)' : 'Target Margin Percentage (%)'}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="90"
+                        value={pricingRule.value}
+                        onChange={(e) => setPricingRule({ ...pricingRule, value: Number(e.target.value) })}
+                        className="w-28 px-3 py-2 rounded-lg border border-slate-200 text-sm font-bold font-mono focus:border-emerald-600 outline-none"
+                      />
+                      <span className="text-sm font-bold text-slate-500">%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Manual Override Rate (Optional)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-500">₹</span>
+                      <input
+                        type="number"
+                        placeholder={`Suggested: ₹${suggestedRate}`}
+                        value={manualOverrideRate}
+                        onChange={(e) => setManualOverrideRate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-bold font-mono focus:border-emerald-600 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Calculation Transparency Breakdown Box */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs space-y-1">
+                  <span className="font-sans font-bold text-slate-700 block">Calculation Breakdown:</span>
+                  {pricingRule.method === 'markup' ? (
+                    <p className="text-slate-600">
+                      ₹{cost} × (1 + {val} / 100) = ₹{cost} × {(1 + val / 100).toFixed(2)} = <strong className="text-emerald-700">₹{markupRate}</strong>
+                    </p>
+                  ) : (
+                    <p className="text-slate-600">
+                      ₹{cost} ÷ (1 − {val} / 100) = ₹{cost} ÷ {((100 - val) / 100).toFixed(2)} = <strong className="text-emerald-700">₹{marginRate}</strong>
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-400 font-sans mt-1">
+                    * Guaranteed Integrity: Updating suggested or approved rates applies only to upcoming quotations and orders. Historical invoices will never be altered.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsPricingModalOpen(false)}
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={pricingSaving}
+                      onClick={() => handleSavePricingRule(false)}
+                      className="px-4 py-2 rounded-lg border border-slate-300 text-slate-800 font-bold hover:bg-slate-100 transition shadow-xs"
+                    >
+                      {pricingSaving ? 'Saving...' : 'Save Rule Only'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pricingSaving}
+                      onClick={() => handleSavePricingRule(true)}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition shadow-xs"
+                    >
+                      {pricingSaving ? 'Applying...' : 'Apply to Selling Price'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
     </div>
   );
 }

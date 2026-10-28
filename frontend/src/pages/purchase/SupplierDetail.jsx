@@ -17,9 +17,14 @@ import {
   ShieldCheck,
   Calendar,
   FileText,
+  Sparkles,
+  Copy,
+  Share2,
+  Check,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import Modal from '../../components/common/Modal';
 import { ft } from '../../services/procurementService';
 
 export default function SupplierDetail() {
@@ -29,6 +34,38 @@ export default function SupplierDetail() {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'quotations' | 'invoices' | 'grns' | 'info'
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Supplier AI Assistant State
+  const [isSupplierAiOpen, setIsSupplierAiOpen] = useState(false);
+  const [aiType, setAiType] = useState('quotation_request');
+  const [aiCustomNotes, setAiCustomNotes] = useState('');
+  const [aiMessage, setAiMessage] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleGenerateSupplierAi = async (typeToUse = aiType) => {
+    try {
+      setAiLoading(true);
+      setCopySuccess(false);
+      const res = await fetch('/api/v1/ai/supplier-assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: typeToUse,
+          supplier_id: id,
+          custom_notes: aiCustomNotes,
+        }),
+      });
+      const result = await res.json();
+      if (result.success && result.data?.message) {
+        setAiMessage(result.data.message);
+      }
+    } catch (err) {
+      console.error('Failed to generate supplier AI message:', err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) {
@@ -80,6 +117,18 @@ export default function SupplierDetail() {
         ]}
         actions={
           <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSupplierAiOpen(true);
+                handleGenerateSupplierAi('quotation_request');
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition shadow-sm"
+              title="Supplier AI Communication Assistant"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>AI Assistant</span>
+            </button>
             <button
               onClick={() => navigate('/purchase/suppliers')}
               className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition shadow-sm"
@@ -647,6 +696,120 @@ export default function SupplierDetail() {
           )}
         </div>
       </div>
+
+      {/* SUPPLIER AI ASSISTANT MODAL */}
+      {isSupplierAiOpen && (
+        <Modal
+          isOpen={isSupplierAiOpen}
+          onClose={() => setIsSupplierAiOpen(false)}
+          title={`AI Assistant: Communication with ${supplier.supplier_name}`}
+          size="lg"
+        >
+          <div className="space-y-4 text-sm">
+            {/* Action Tabs */}
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-xl">
+              {[
+                { id: 'quotation_request', label: 'Quotation Request' },
+                { id: 'purchase_followup', label: 'Purchase Follow-up' },
+                { id: 'quotation_rejection', label: 'Quotation Rejection' },
+                { id: 'summarize_history', label: 'Account Summary' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setAiType(tab.id);
+                    handleGenerateSupplierAi(tab.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    aiType === tab.id
+                      ? 'bg-violet-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Notes */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Custom Context or Additional Notes (Optional)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={aiCustomNotes}
+                  onChange={(e) => setAiCustomNotes(e.target.value)}
+                  placeholder="e.g. Requirement needed within 5 business days..."
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-violet-600 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleGenerateSupplierAi(aiType)}
+                  disabled={aiLoading}
+                  className="px-3.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition flex items-center gap-1.5 shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{aiLoading ? 'Regenerating...' : 'Regenerate'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Message Textarea */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Generated Message (Review & Edit before sending)
+                </label>
+                <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Verified Real Supplier Data
+                </span>
+              </div>
+              <textarea
+                rows={8}
+                value={aiMessage}
+                onChange={(e) => setAiMessage(e.target.value)}
+                placeholder="Generating AI message from ERP records..."
+                className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed font-sans focus:border-violet-600 outline-none resize-none bg-slate-50/50"
+              />
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
+              <span className="text-xs text-slate-500">
+                Supplier Mobile: <strong className="font-mono text-slate-800">{supplier.mobile || 'No mobile registered'}</strong>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(aiMessage);
+                    setCopySuccess(true);
+                    setTimeout(() => setCopySuccess(false), 2500);
+                  }}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center gap-1.5"
+                >
+                  {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copySuccess ? 'Copied to Clipboard!' : 'Copy Text'}</span>
+                </button>
+                {supplier.mobile && (
+                  <a
+                    href={`https://wa.me/91${supplier.mobile.replace(/\D/g, '')}?text=${encodeURIComponent(aiMessage)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Send via WhatsApp</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

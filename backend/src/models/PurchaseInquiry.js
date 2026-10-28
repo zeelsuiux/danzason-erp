@@ -32,6 +32,32 @@ const supplierQuotationSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    rejected_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    rejected_by_name: {
+      type: String,
+      default: '',
+    },
+    rejected_at: {
+      type: Date,
+      default: null,
+    },
+    rejection_message: {
+      type: String,
+      default: '',
+    },
+    rejection_message_status: {
+      type: String,
+      enum: ['none', 'pending', 'sent', 'failed'],
+      default: 'none',
+    },
+    rejection_message_sent_at: {
+      type: Date,
+      default: null,
+    },
   },
   { _id: true }
 );

@@ -59,6 +59,33 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    cost_rate: {
+      type: Number,
+      default: 0,
+    },
+    pricing_rule: {
+      method: {
+        type: String,
+        enum: ['markup', 'margin'],
+        default: 'markup',
+      },
+      value: {
+        type: Number,
+        default: 20,
+      },
+      last_purchase_rate: {
+        type: Number,
+        default: 0,
+      },
+      suggested_sales_rate: {
+        type: Number,
+        default: 0,
+      },
+      auto_update_suggested: {
+        type: Boolean,
+        default: true,
+      },
+    },
     selling_rate: {
       type: Number,
       default: 0,

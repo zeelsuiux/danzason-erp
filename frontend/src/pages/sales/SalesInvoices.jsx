@@ -104,6 +104,7 @@ export default function SalesInvoices() {
     pay_mode_type: 'single', // 'single' | 'split'
     amount: '',
     payment_date: new Date().toISOString().split('T')[0],
+    payment_time: new Date().toTimeString().substring(0, 5),
     payment_mode: 'Bank Transfer / NEFT',
     bank_account_id: '',
     reference_number: '',
@@ -117,6 +118,65 @@ export default function SalesInvoices() {
   const [dueDateInvoice, setDueDateInvoice] = useState(null);
   const [newDueDate, setNewDueDate] = useState('');
   const [dueDateSubmitting, setDueDateSubmitting] = useState(false);
+
+  // 5. Payment Received Time Correction Modal (Requirement 10)
+  const [isTimeCorrectionOpen, setIsTimeCorrectionOpen] = useState(false);
+  const [timeCorrectionTarget, setTimeCorrectionTarget] = useState(null);
+  const [timeCorrectionForm, setTimeCorrectionForm] = useState({
+    new_date: '',
+    new_time: '',
+    reason: 'Correction of recorded transaction timestamp',
+    corrected_by: 'Authorized Accountant',
+  });
+  const [timeCorrectionSubmitting, setTimeCorrectionSubmitting] = useState(false);
+
+  const handleOpenTimeCorrection = (invoice, index, payment) => {
+    const dt = new Date(payment.payment_datetime || payment.payment_date || Date.now());
+    setTimeCorrectionTarget({ invoice, index, payment });
+    setTimeCorrectionForm({
+      new_date: dt.toISOString().split('T')[0],
+      new_time: payment.payment_time || dt.toTimeString().substring(0, 5),
+      reason: 'Correction of recorded transaction timestamp',
+      corrected_by: 'Authorized Accountant',
+    });
+    setIsTimeCorrectionOpen(true);
+  };
+
+  const handleSaveTimeCorrection = async (e) => {
+    e.preventDefault();
+    if (!timeCorrectionTarget) return;
+    try {
+      setTimeCorrectionSubmitting(true);
+      const combinedIso = new Date(`${timeCorrectionForm.new_date}T${timeCorrectionForm.new_time}:00`).toISOString();
+      const res = await fetch(
+        `/api/v1/sales/invoices/${timeCorrectionTarget.invoice._id}/payments/${timeCorrectionTarget.index}/time`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            new_datetime: combinedIso,
+            reason: timeCorrectionForm.reason,
+            corrected_by: timeCorrectionForm.corrected_by,
+          }),
+        }
+      );
+      const result = await res.json();
+      if (result.success) {
+        setIsTimeCorrectionOpen(false);
+        if (selectedInvoice && selectedInvoice._id === timeCorrectionTarget.invoice._id) {
+          setSelectedInvoice(result.data);
+        }
+        loadInvoices(pagination.page);
+        alert('Payment timestamp corrected successfully and synced to Finance.');
+      } else {
+        alert(result.message || 'Failed to correct payment time');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to correct payment time');
+    } finally {
+      setTimeCorrectionSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     loadInvoices(pagination.page);
@@ -181,6 +241,7 @@ export default function SalesInvoices() {
       pay_mode_type: 'single',
       amount: inv.balance_amount || '',
       payment_date: new Date().toISOString().split('T')[0],
+      payment_time: new Date().toTimeString().substring(0, 5),
       payment_mode: 'Bank Transfer / NEFT',
       bank_account_id: defaultBank?._id || '',
       reference_number: '',
@@ -241,6 +302,8 @@ export default function SalesInvoices() {
         split_online: isSplit ? Number(paymentForm.split_online) : 0,
         payment_mode: paymentForm.payment_mode,
         payment_date: paymentForm.payment_date,
+        payment_time: paymentForm.payment_time,
+        payment_datetime: new Date(`${paymentForm.payment_date}T${paymentForm.payment_time || '12:00'}:00`).toISOString(),
         bank_account_id: paymentForm.bank_account_id || undefined,
         bank_account_name: selectedBank?.account_name || undefined,
         reference_number: paymentForm.reference_number,
@@ -1798,19 +1861,44 @@ export default function SalesInvoices() {
                           <span className="text-[10px] font-bold text-emerald-800 uppercase block mb-1">
                             Recorded Payment Settlements:
                           </span>
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             {selectedInvoice.payments.map((p, pIdx) => (
                               <div
                                 key={pIdx}
-                                className="flex justify-between text-[10px] text-slate-600 font-mono"
+                                className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-[10px] text-slate-700 font-mono"
                               >
-                                <span>
-                                  {new Date(p.payment_date).toLocaleDateString('en-IN')} ({p.payment_mode})
-                                  {p.reference_number ? ` Ref: ${p.reference_number}` : ''}
-                                </span>
-                                <span className="font-bold text-emerald-700">
-                                  ₹{Number(p.amount).toLocaleString('en-IN')}
-                                </span>
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                                    <span>{new Date(p.payment_datetime || p.payment_date).toLocaleDateString('en-IN')}</span>
+                                    <span className="text-emerald-700 font-extrabold">
+                                      {p.payment_time || new Date(p.payment_datetime || p.payment_date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <span className="text-slate-500 font-sans">({p.payment_mode})</span>
+                                    {p.time_corrected && (
+                                      <span className="bg-amber-100 text-amber-800 text-[9px] px-1 py-0.2 rounded font-sans font-bold" title="Time adjusted with audit trail">
+                                        Time Adjusted
+                                      </span>
+                                    )}
+                                  </div>
+                                  {p.reference_number && (
+                                    <span className="text-[10px] text-slate-400 block font-mono">
+                                      Ref: {p.reference_number}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-emerald-700 text-xs">
+                                    ₹{Number(p.amount).toLocaleString('en-IN')}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenTimeCorrection(selectedInvoice, pIdx, p)}
+                                    className="p-1 hover:bg-slate-200 text-slate-400 hover:text-emerald-700 rounded transition"
+                                    title="Correct Payment Time / Timestamp"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2109,7 +2197,7 @@ export default function SalesInvoices() {
               <div className="flex items-center justify-between text-xs">
                 <label className="font-bold text-emerald-950 flex items-center gap-1.5">
                   <Landmark className="w-4 h-4 text-emerald-600" />
-                  <span>Receiving Bank Account (કઈ બેંકમાં પેમેન્ટ આવ્યું? *)</span>
+                  <span>Receiving Bank Account *</span>
                 </label>
                 {paymentForm.bank_account_id && (
                   <span className="font-mono text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
@@ -2167,7 +2255,7 @@ export default function SalesInvoices() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-700 font-bold mb-1">Payment Date</label>
                     <input
@@ -2178,6 +2266,19 @@ export default function SalesInvoices() {
                         setPaymentForm({ ...paymentForm, payment_date: e.target.value })
                       }
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-brand"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Payment Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={paymentForm.payment_time}
+                      onChange={(e) =>
+                        setPaymentForm({ ...paymentForm, payment_time: e.target.value })
+                      }
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-brand font-mono"
                     />
                   </div>
 
@@ -2359,6 +2460,101 @@ export default function SalesInvoices() {
           </form>
         )}
       </Modal>
+
+      {/* REQUIREMENT 10: PAYMENT RECEIVED TIME CORRECTION MODAL */}
+      {isTimeCorrectionOpen && timeCorrectionTarget && (
+        <Modal
+          isOpen={isTimeCorrectionOpen}
+          onClose={() => setIsTimeCorrectionOpen(false)}
+          title={`Correct Payment Received Time — Invoice ${timeCorrectionTarget.invoice.invoice_number}`}
+          size="md"
+        >
+          <form onSubmit={handleSaveTimeCorrection} className="space-y-4 text-xs font-sans text-slate-800">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Settlement Details</span>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-700">Amount:</span>
+                <span className="font-bold font-mono text-emerald-700 text-sm">
+                  ₹{Number(timeCorrectionTarget.payment.amount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                <span>Recorded Mode:</span>
+                <span className="font-medium">{timeCorrectionTarget.payment.payment_mode || 'Bank'}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Corrected Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={timeCorrectionForm.new_date}
+                  onChange={(e) => setTimeCorrectionForm({ ...timeCorrectionForm, new_date: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-brand"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Corrected Time *</label>
+                <input
+                  type="time"
+                  required
+                  value={timeCorrectionForm.new_time}
+                  onChange={(e) => setTimeCorrectionForm({ ...timeCorrectionForm, new_time: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 outline-none focus:border-brand font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">
+                Reason for Time Correction <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={timeCorrectionForm.reason}
+                onChange={(e) => setTimeCorrectionForm({ ...timeCorrectionForm, reason: e.target.value })}
+                placeholder="e.g. Bank credit timestamp was 02:45 PM instead of morning"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">Corrected By</label>
+              <input
+                type="text"
+                value={timeCorrectionForm.corrected_by}
+                onChange={(e) => setTimeCorrectionForm({ ...timeCorrectionForm, corrected_by: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none bg-slate-50"
+              />
+            </div>
+
+            <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+              * Audit Trail Notice: Correcting payment time updates the invoice settlement history and synchronizes the associated Finance Transaction timestamp without creating duplicate records.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsTimeCorrectionOpen(false)}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={timeCorrectionSubmitting}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition shadow-sm disabled:opacity-50"
+              >
+                {timeCorrectionSubmitting ? 'Syncing...' : 'Save & Sync Time'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

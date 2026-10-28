@@ -16,6 +16,11 @@ import {
   Tags,
   ChevronDown,
   Edit2,
+  Share2,
+  Copy,
+  Send,
+  Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
@@ -68,6 +73,93 @@ export default function InquiriesQuotations() {
     remarks: '',
     items: [],
   });
+
+  // Requirement 2: Rejection Reason Modal State
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectTargetQuotation, setRejectTargetQuotation] = useState(null);
+  const [selectedRejectReason, setSelectedRejectReason] = useState('Price higher than target / budget');
+  const [customRejectReason, setCustomRejectReason] = useState('');
+  const [sendRejectionMessage, setSendRejectionMessage] = useState(true);
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
+
+  // Requirement 1: Purchase Message Dynamic Variables State
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+  const [messageTargetSupplier, setMessageTargetSupplier] = useState(null);
+  const [messageTemplate, setMessageTemplate] = useState(
+    'Dear {supplier_name},\n\nWe have a purchase requirement for {required_product}.\n\nSupplier Type: {supplier_type}\nContact Number: {supplier_mobile_number}\n\nPlease share your quotation, pricing, and availability.\n\nThank you.'
+  );
+  const [messageCopyStatus, setMessageCopyStatus] = useState(false);
+  const [unresolvedError, setUnresolvedError] = useState('');
+
+  // Dynamic variable resolver
+  const resolvePurchaseMessageVariables = (template, supplier, inquiry) => {
+    if (!template) return '';
+    const sName = supplier?.supplier_name || supplier?.company_name || 'Valued Supplier';
+    const sType = supplier?.supplier_type || supplier?.category || 'Vendor';
+    const sMobile = supplier?.mobile || supplier?.phone || '';
+    const reqProduct = inquiry?.items?.map((it) => `${it.item_name} (${it.quantity} ${it.uom || 'Nos'})`).join(', ') || 'Required Items';
+
+    return template
+      .replace(/{supplier_name}/g, sName)
+      .replace(/{supplier_type}/g, sType)
+      .replace(/{supplier_mobile_number}/g, sMobile || '[Mobile Not Provided]')
+      .replace(/{required_product}/g, reqProduct);
+  };
+
+  const getRejectionMessageText = (supplier, inquiry, reason) => {
+    const sName = supplier?.supplier_name || supplier?.company_name || 'Valued Supplier';
+    const reqProduct = inquiry?.items?.map((it) => it.item_name).join(', ') || 'the requested goods';
+    return `Dear ${sName},\n\nThank you for submitting your quotation for ${reqProduct}.\n\nAfter reviewing your quotation, we are unable to proceed at this time.\n\nReason: ${reason}\n\nWe appreciate your interest and look forward to future opportunities.\n\nThank you.`;
+  };
+
+  const insertVariableIntoMessage = (variableTag) => {
+    setMessageTemplate((prev) => prev + ' ' + variableTag);
+  };
+
+  const handleOpenRejectModal = (sq) => {
+    setRejectTargetQuotation(sq);
+    setSelectedRejectReason('Price higher than target / budget');
+    setCustomRejectReason('');
+    setSendRejectionMessage(true);
+    setIsRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectTargetQuotation || !selectedInquiry) return;
+    const finalReason = selectedRejectReason === 'Custom reason' ? customRejectReason.trim() : selectedRejectReason;
+    if (!finalReason) {
+      alert('Rejection reason is mandatory.');
+      return;
+    }
+
+    try {
+      setRejectSubmitting(true);
+      const supplierObj = rejectTargetQuotation.supplier_id || {};
+      const rejectionMessage = getRejectionMessageText(supplierObj, selectedInquiry, finalReason);
+
+      await ft.updateSupplierQuotation(selectedInquiry._id, supplierObj._id || supplierObj.id, {
+        status: 'rejected',
+        reject_reason: finalReason,
+        rejection_message: rejectionMessage,
+        rejected_by_name: 'Authorized Purchaser',
+        send_message: sendRejectionMessage,
+      });
+
+      if (sendRejectionMessage && supplierObj.mobile) {
+        const cleanMobile = supplierObj.mobile.replace(/\D/g, '');
+        window.open(`https://wa.me/91${cleanMobile}?text=${encodeURIComponent(rejectionMessage)}`, '_blank');
+      }
+
+      setIsRejectModalOpen(false);
+      setRejectTargetQuotation(null);
+      await loadInquiries();
+      alert('Quotation rejection and message status saved to transaction history successfully.');
+    } catch (err) {
+      alert(err.message || 'Failed to reject quotation');
+    } finally {
+      setRejectSubmitting(false);
+    }
+  };
 
   // Create Form State
   const [categorySuppliers, setCategorySuppliers] = useState([]);
@@ -503,12 +595,32 @@ export default function InquiriesQuotations() {
     (q) => !q.inquiry_type || q.inquiry_type === 'finished' || q.inquiry_type === 'standard'
   );
 
-  const filteredInquiries =
+  const tabScopedInquiries =
     purchaseTypeTab === 'all'
       ? nonMfgInquiries
       : purchaseTypeTab === 'raw_material'
       ? rawMaterialInquiries
       : finishedInquiries;
+
+  const filteredInquiries = tabScopedInquiries.filter((inq) => {
+    if (!search.trim()) return true;
+    const term = search.toLowerCase();
+    const matchInq = inq.inquiry_number?.toLowerCase().includes(term);
+    const matchTitle = inq.title?.toLowerCase().includes(term);
+    const matchCat = inq.category_name?.toLowerCase().includes(term);
+    const matchItems = inq.items?.some(
+      (it) => it.item_name?.toLowerCase().includes(term) || it.description?.toLowerCase().includes(term)
+    );
+    const matchSuppliers = inq.suppliers?.some((s) => {
+      const sup = s.supplier_id || {};
+      return (
+        sup.supplier_name?.toLowerCase().includes(term) ||
+        sup.supplier_code?.toLowerCase().includes(term) ||
+        sup.company_name?.toLowerCase().includes(term)
+      );
+    });
+    return matchInq || matchTitle || matchCat || matchItems || matchSuppliers;
+  });
 
   return (
     <div className="space-y-5 pb-12">
@@ -1206,6 +1318,23 @@ export default function InquiriesQuotations() {
                           {sq.quoted_remarks || 'None'}
                         </span>
                       </div>
+
+                      {sq.status === 'rejected' && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:col-span-2 space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-rose-900">Rejection Reason: {sq.reject_reason || 'Rejected by Purchaser'}</span>
+                            {sq.rejection_message_status === 'sent' && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">
+                                Notice Sent
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-rose-700 flex items-center gap-2">
+                            <span>Rejected by: {sq.rejected_by_name || 'Authorized Purchaser'}</span>
+                            {sq.rejected_at && <span>• {new Date(sq.rejected_at).toLocaleString('en-IN')}</span>}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Update / Award actions */}
@@ -1237,6 +1366,18 @@ export default function InquiriesQuotations() {
                       <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         <button
                           type="button"
+                          onClick={() => {
+                            setMessageTargetSupplier(sq.supplier_id);
+                            setIsMessageModalOpen(true);
+                          }}
+                          className="px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5 text-xs font-bold"
+                          title="Draft Purchase Message with Dynamic Variables"
+                        >
+                          <Send className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Message</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleOpenPoConfirm(sq)}
                           disabled={updatingQuote || sq.status === 'accepted'}
                           className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5"
@@ -1244,17 +1385,16 @@ export default function InquiriesQuotations() {
                           <CheckCircle className="w-4 h-4" />
                           Accept & Award PO
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setQuoteForm((prev) => ({ ...prev, status: 'rejected' }));
-                            handleUpdateQuotation(sq);
-                          }}
-                          disabled={updatingQuote}
-                          className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition"
-                        >
-                          Reject
-                        </button>
+                        {sq.status !== 'rejected' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRejectModal(sq)}
+                            disabled={updatingQuote}
+                            className="px-4 py-2 rounded-lg border border-rose-200 text-rose-700 font-semibold text-sm hover:bg-rose-50 transition"
+                          >
+                            Reject
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1477,6 +1617,219 @@ export default function InquiriesQuotations() {
               );
             })()}
           </form>
+        </Modal>
+      )}
+
+      {/* REQUIREMENT 2: SUPPLIER REJECTION REASON MODAL */}
+      {isRejectModalOpen && rejectTargetQuotation && selectedInquiry && (
+        <Modal
+          isOpen={isRejectModalOpen}
+          onClose={() => setIsRejectModalOpen(false)}
+          title={`Reject Supplier Quotation: ${rejectTargetQuotation.supplier_id?.supplier_name || 'Supplier'}`}
+          size="md"
+        >
+          <div className="space-y-4 text-xs font-sans text-slate-800">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Select Rejection Reason <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={selectedRejectReason}
+                onChange={(e) => setSelectedRejectReason(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-medium focus:border-brand outline-none bg-white"
+              >
+                <option value="Price higher than target / budget">Price higher than target / budget</option>
+                <option value="Delivery schedule / lead time too long">Delivery schedule / lead time too long</option>
+                <option value="Quality / technical specifications mismatch">Quality / technical specifications mismatch</option>
+                <option value="Alternative supplier quotation awarded">Alternative supplier quotation awarded</option>
+                <option value="Payment terms not acceptable">Payment terms not acceptable</option>
+                <option value="Custom reason">Custom reason (Enter details below)</option>
+              </select>
+            </div>
+
+            {selectedRejectReason === 'Custom reason' && (
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Specify Custom Reason <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={customRejectReason}
+                  onChange={(e) => setCustomRejectReason(e.target.value)}
+                  placeholder="Enter specific technical or commercial reason..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
+                />
+              </div>
+            )}
+
+            {/* Live Message Preview */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+              <span className="font-bold text-[11px] uppercase tracking-wide text-slate-600 block">
+                Supplier Notification Message Preview
+              </span>
+              <p className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed bg-white p-2.5 rounded-lg border border-slate-100">
+                {getRejectionMessageText(
+                  rejectTargetQuotation.supplier_id,
+                  selectedInquiry,
+                  selectedRejectReason === 'Custom reason' ? customRejectReason || '[Reason]' : selectedRejectReason
+                )}
+              </p>
+            </div>
+
+            {/* Send Notice Toggle */}
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-900">
+              <input
+                type="checkbox"
+                id="sendNoticeCheck"
+                checked={sendRejectionMessage}
+                onChange={(e) => setSendRejectionMessage(e.target.checked)}
+                className="w-4 h-4 text-emerald-600 rounded"
+              />
+              <label htmlFor="sendNoticeCheck" className="text-xs font-semibold cursor-pointer">
+                Deliver rejection notice to supplier mobile via WhatsApp ({rejectTargetQuotation.supplier_id?.mobile || 'No mobile'})
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsRejectModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                disabled={rejectSubmitting}
+                className="px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition shadow-sm disabled:opacity-50"
+              >
+                {rejectSubmitting ? 'Recording Rejection...' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* REQUIREMENT 1: PURCHASE MESSAGE WITH DYNAMIC VARIABLES MODAL */}
+      {isMessageModalOpen && (
+        <Modal
+          isOpen={isMessageModalOpen}
+          onClose={() => setIsMessageModalOpen(false)}
+          title={`Draft Purchase Message: ${messageTargetSupplier?.supplier_name || 'Supplier'}`}
+          size="lg"
+        >
+          <div className="space-y-4 text-xs font-sans text-slate-800">
+            {/* Clickable Variable Chips */}
+            <div>
+              <span className="block font-bold text-slate-700 mb-1.5 text-xs">
+                Available Dynamic Variables (Click to insert):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { tag: '{supplier_name}', label: 'Supplier Name' },
+                  { tag: '{supplier_type}', label: 'Supplier Type' },
+                  { tag: '{required_product}', label: 'Required Product' },
+                  { tag: '{supplier_mobile_number}', label: 'Supplier Mobile Number' },
+                ].map((chip) => (
+                  <button
+                    key={chip.tag}
+                    type="button"
+                    onClick={() => insertVariableIntoMessage(chip.tag)}
+                    className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-mono text-[11px] font-bold hover:bg-blue-100 transition shadow-2xs"
+                    title={`Insert ${chip.tag}`}
+                  >
+                    + {chip.tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Template Editor */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1 text-xs">Message Template</label>
+              <textarea
+                rows={6}
+                value={messageTemplate}
+                onChange={(e) => {
+                  setMessageTemplate(e.target.value);
+                  setUnresolvedError('');
+                }}
+                className="w-full p-3 rounded-xl border border-slate-200 text-xs font-sans leading-relaxed focus:border-brand outline-none resize-none bg-white"
+              />
+            </div>
+
+            {/* Live Real-Value Preview */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="font-bold text-[11px] uppercase tracking-wide text-slate-600 block">
+                Live Preview (With Resolved Actual Values)
+              </span>
+              <div className="p-3 bg-white rounded-lg border border-slate-100 whitespace-pre-wrap text-slate-800 leading-relaxed text-xs">
+                {resolvePurchaseMessageVariables(messageTemplate, messageTargetSupplier, selectedInquiry)}
+              </div>
+            </div>
+
+            {/* Missing Info Warning & Unresolved Variable Validation */}
+            {!messageTargetSupplier?.mobile && (
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-center gap-2 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                <span>Notice: Supplier mobile number is not registered in the directory.</span>
+              </div>
+            )}
+
+            {unresolvedError && (
+              <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2 text-xs font-bold">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{unresolvedError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+              <span className="text-xs text-slate-500 font-mono">
+                {messageTargetSupplier?.mobile ? `Mobile: ${messageTargetSupplier.mobile}` : 'No phone registered'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const resolved = resolvePurchaseMessageVariables(messageTemplate, messageTargetSupplier, selectedInquiry);
+                    if (hasUnresolvedVariables(resolved)) {
+                      setUnresolvedError('Cannot send message: Unresolved variables remain in the text.');
+                      return;
+                    }
+                    navigator.clipboard.writeText(resolved);
+                    setMessageCopyStatus(true);
+                    setTimeout(() => setMessageCopyStatus(false), 2500);
+                  }}
+                  className="px-3.5 py-2 rounded-lg border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition flex items-center gap-1.5"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{messageCopyStatus ? 'Copied!' : 'Copy Text'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const resolved = resolvePurchaseMessageVariables(messageTemplate, messageTargetSupplier, selectedInquiry);
+                    if (hasUnresolvedVariables(resolved)) {
+                      setUnresolvedError('Cannot send message: Unresolved variables remain in the text.');
+                      return;
+                    }
+                    if (!messageTargetSupplier?.mobile) {
+                      alert('Supplier does not have a registered mobile number for WhatsApp delivery.');
+                      return;
+                    }
+                    const cleanMobile = messageTargetSupplier.mobile.replace(/\D/g, '');
+                    window.open(`https://wa.me/91${cleanMobile}?text=${encodeURIComponent(resolved)}`, '_blank');
+                  }}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Send via WhatsApp</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

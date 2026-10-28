@@ -558,7 +558,7 @@ export default function OwnerCapitalManagement() {
         {/* Total Owner Drawings */}
         <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 shadow-soft">
           <div className="flex items-center justify-between text-amber-800 text-xs font-bold uppercase tracking-wider mb-1">
-            <span>Total Drawings (ઉપાડ)</span>
+            <span>Total Drawings</span>
             <Minus className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-black font-mono text-amber-900 truncate">
@@ -666,7 +666,7 @@ export default function OwnerCapitalManagement() {
       <Modal
         isOpen={isInfusionModalOpen}
         onClose={() => setIsInfusionModalOpen(false)}
-        title="Record Capital Infusion (+ મૂડી ઉમેરો)"
+        title="Record Capital Infusion (+ Add Capital)"
         maxWidth="max-w-xl"
       >
         <form onSubmit={handleInfusionSubmit} className="space-y-4">
@@ -805,7 +805,7 @@ export default function OwnerCapitalManagement() {
       <Modal
         isOpen={isDrawingModalOpen}
         onClose={() => setIsDrawingModalOpen(false)}
-        title="Record Owner Drawing (- ઉપાડ નોંધો)"
+        title="Record Owner Drawing (- Owner Withdrawal)"
         maxWidth="max-w-xl"
       >
         <form onSubmit={handleDrawingSubmit} className="space-y-4">

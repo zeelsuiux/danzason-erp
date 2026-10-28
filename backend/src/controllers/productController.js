@@ -1039,3 +1039,127 @@ exports.getProductLedger = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * Requirement 7: Sales Rate Auto-Management from Purchase Rate
+ * GET /api/v1/products/:id/pricing
+ */
+exports.getProductPricing = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+    // Fetch latest purchase rate from PurchaseInvoices for real cost tracking
+    const latestBill = await PurchaseInvoice.findOne({
+      'items.product_id': product._id,
+      is_deleted: false,
+    })
+      .sort({ bill_date: -1, createdAt: -1 })
+      .select('items bill_date invoice_number');
+
+    let latestPurchaseCost = product.cost_rate || product.purchase_rate || 0;
+    if (latestBill && latestBill.items) {
+      const billItem = latestBill.items.find(
+        (it) => it.product_id && it.product_id.toString() === product._id.toString()
+      );
+      if (billItem && billItem.unit_rate) {
+        latestPurchaseCost = billItem.unit_rate;
+      }
+    }
+
+    const rule = product.pricing_rule || { method: 'markup', value: 20, auto_update_suggested: true };
+    const method = rule.method || 'markup';
+    const val = Number(rule.value !== undefined ? rule.value : 20);
+
+    // Precise formula calculations:
+    // Markup: Sales Rate = Cost Rate * (1 + Markup %)
+    // Margin: Sales Rate = Cost Rate / (1 - Margin %)
+    let suggestedMarkupRate = Math.round(latestPurchaseCost * (1 + val / 100));
+    let suggestedMarginRate = val < 100 ? Math.round(latestPurchaseCost / (1 - val / 100)) : latestPurchaseCost * 2;
+    let suggestedSalesRate = method === 'margin' ? suggestedMarginRate : suggestedMarkupRate;
+
+    res.json({
+      success: true,
+      data: {
+        product_id: product._id,
+        product_name: product.product_name,
+        product_code: product.product_code,
+        current_purchase_rate: latestPurchaseCost,
+        base_cost_rate: product.cost_rate || latestPurchaseCost,
+        current_selling_rate: product.selling_rate || product.price || 0,
+        b2b_price: product.b2b_price || product.selling_rate || 0,
+        b2c_price: product.b2c_price || product.selling_rate || 0,
+        pricing_rule: {
+          method,
+          value: val,
+          auto_update_suggested: rule.auto_update_suggested !== false,
+          last_purchase_rate: latestPurchaseCost,
+          suggested_sales_rate: suggestedSalesRate,
+        },
+        calculated: {
+          markup_rate: suggestedMarkupRate,
+          margin_rate: suggestedMarginRate,
+          active_suggested_rate: suggestedSalesRate,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Requirement 7: Update Product Pricing Rule & Apply Suggested Rate
+ * PUT /api/v1/products/:id/pricing-rule
+ */
+exports.updateProductPricingRule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { method = 'markup', value = 20, apply_to_selling_rate = false, manual_override_rate = null } = req.body;
+
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+    let cost = product.cost_rate || product.purchase_rate || 0;
+    const ruleValue = Number(value) || 0;
+
+    let suggested = 0;
+    if (method === 'margin') {
+      suggested = ruleValue < 100 ? Math.round(cost / (1 - ruleValue / 100)) : cost * 2;
+    } else {
+      suggested = Math.round(cost * (1 + ruleValue / 100));
+    }
+
+    product.pricing_rule = {
+      method: method === 'margin' ? 'margin' : 'markup',
+      value: ruleValue,
+      last_purchase_rate: cost,
+      suggested_sales_rate: suggested,
+      auto_update_suggested: true,
+    };
+
+    // If user explicitly confirms applying suggested rate or provides an authorized manual override
+    if (apply_to_selling_rate) {
+      const newRate = manual_override_rate ? Number(manual_override_rate) : suggested;
+      product.selling_rate = newRate;
+      product.price = newRate;
+      product.b2b_price = newRate;
+    }
+
+    await product.save();
+
+    res.json({
+      success: true,
+      message: 'Product pricing rule updated successfully without altering historical invoices',
+      data: {
+        product_id: product._id,
+        pricing_rule: product.pricing_rule,
+        selling_rate: product.selling_rate,
+      },
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+

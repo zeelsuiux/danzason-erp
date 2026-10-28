@@ -103,6 +103,15 @@ const purchaseInvoiceSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    challan_number: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    challan_date: {
+      type: Date,
+      default: null,
+    },
     bill_date: {
       type: Date,
       default: Date.now,

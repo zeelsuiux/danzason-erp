@@ -198,6 +198,20 @@ export default function SupplierInvoices() {
       cellClassName: 'font-mono font-medium text-slate-700 text-xs',
     },
     {
+      header: 'Challan #',
+      key: 'challan_number',
+      render: (val, row) => (
+        <div>
+          <span className="font-mono text-xs text-slate-800 font-semibold">{val || '—'}</span>
+          {row.challan_date && (
+            <span className="text-[10px] text-slate-400 block font-sans">
+              {new Date(row.challan_date).toLocaleDateString('en-IN')}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
       header: 'Bill Date',
       key: 'bill_date',
       render: (val) => <span className="text-xs text-slate-600">{new Date(val).toLocaleDateString('en-IN')}</span>,
@@ -332,12 +346,28 @@ export default function SupplierInvoices() {
       !row.is_service_bill
   );
 
-  const filteredInvoices =
+  const tabScopedInvoices =
     purchaseTypeTab === 'all'
       ? nonJobWorkInvoices
       : purchaseTypeTab === 'raw_material'
       ? rawMaterialInvoices
       : finishedInvoices;
+
+  const filteredInvoices = tabScopedInvoices.filter((row) => {
+    if (!search.trim()) return true;
+    const term = search.toLowerCase();
+    const matchInv = row.invoice_number?.toLowerCase().includes(term);
+    const matchVendorBill = row.vendor_bill_number?.toLowerCase().includes(term);
+    const matchSuppInv = row.supplier_invoice_number?.toLowerCase().includes(term);
+    const matchChallan = row.challan_number?.toLowerCase().includes(term);
+    const matchSuppName = row.supplier_id?.supplier_name?.toLowerCase().includes(term);
+    const matchSuppCode = row.supplier_id?.supplier_code?.toLowerCase().includes(term);
+    const matchPo = row.po_id?.po_number?.toLowerCase().includes(term);
+    const matchItems = row.items?.some(
+      (it) => it.product_name?.toLowerCase().includes(term) || it.sku?.toLowerCase().includes(term) || it.description?.toLowerCase().includes(term)
+    );
+    return matchInv || matchVendorBill || matchSuppInv || matchChallan || matchSuppName || matchSuppCode || matchPo || matchItems;
+  });
 
   return (
     <div className="space-y-6 pb-12">
@@ -543,7 +573,7 @@ export default function SupplierInvoices() {
                 <div className="flex items-center justify-between text-xs">
                   <label className="font-bold text-blue-950 flex items-center gap-1.5">
                     <Landmark className="w-4 h-4 text-blue-600" />
-                    <span>Paying Bank Account (કઈ બેંકમાંથી ચૂકવ્યું? *)</span>
+                    <span>Paying Bank Account *</span>
                   </label>
                   {paymentForm.bank_account_id && (
                     <span className="font-mono text-[11px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">
@@ -745,7 +775,7 @@ export default function SupplierInvoices() {
           size="2xl"
         >
           <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div>
                 <p className="text-slate-500 font-medium">Bill Number</p>
                 <p className="font-mono font-bold text-slate-900">{selectedBill.invoice_number}</p>
@@ -753,6 +783,15 @@ export default function SupplierInvoices() {
               <div>
                 <p className="text-slate-500 font-medium">Vendor Ref #</p>
                 <p className="font-mono text-slate-800">{selectedBill.vendor_bill_number || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-slate-500 font-medium">Challan #</p>
+                <p className="font-mono text-slate-800 font-semibold">{selectedBill.challan_number || '—'}</p>
+                {selectedBill.challan_date && (
+                  <p className="text-[10px] text-slate-400 font-sans">
+                    {new Date(selectedBill.challan_date).toLocaleDateString('en-IN')}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-slate-500 font-medium">Bill Date</p>
