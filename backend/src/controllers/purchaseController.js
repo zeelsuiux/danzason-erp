@@ -1406,7 +1406,19 @@ exports.getNextBillNumber = async (req, res) => {
 
 exports.createInvoice = async (req, res) => {
   try {
-    const { po_id, supplier_id, warehouse_id, vendor_bill_number, bill_date, due_date, remarks, items, grn_id } = req.body;
+    const {
+      po_id,
+      supplier_id,
+      warehouse_id,
+      vendor_bill_number,
+      bill_date,
+      due_date,
+      remarks,
+      items,
+      grn_id,
+      challan_number,
+      challan_date,
+    } = req.body;
 
     let invoice;
     let isConsolidated = false;
@@ -1484,6 +1496,13 @@ exports.createInvoice = async (req, res) => {
         if (!invoice.grn_ids.some((g) => g.toString() === grn_id.toString())) {
           invoice.grn_ids.push(grn_id);
         }
+      }
+
+      if (challan_number) {
+        invoice.challan_number = challan_number;
+      }
+      if (challan_date) {
+        invoice.challan_date = challan_date;
       }
 
       if (remarks) {

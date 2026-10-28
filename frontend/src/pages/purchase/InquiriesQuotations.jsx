@@ -146,8 +146,9 @@ export default function InquiriesQuotations() {
       });
 
       if (sendRejectionMessage && supplierObj.mobile) {
-        const cleanMobile = supplierObj.mobile.replace(/\D/g, '');
-        window.open(`https://wa.me/91${cleanMobile}?text=${encodeURIComponent(rejectionMessage)}`, '_blank');
+        let cleanMobile = supplierObj.mobile.replace(/\D/g, '');
+        if (cleanMobile.length === 10) cleanMobile = '91' + cleanMobile;
+        window.open(`https://wa.me/${cleanMobile}?text=${encodeURIComponent(rejectionMessage)}`, '_blank');
       }
 
       setIsRejectModalOpen(false);
@@ -1819,8 +1820,9 @@ export default function InquiriesQuotations() {
                       alert('Supplier does not have a registered mobile number for WhatsApp delivery.');
                       return;
                     }
-                    const cleanMobile = messageTargetSupplier.mobile.replace(/\D/g, '');
-                    window.open(`https://wa.me/91${cleanMobile}?text=${encodeURIComponent(resolved)}`, '_blank');
+                    let cleanMobile = messageTargetSupplier.mobile.replace(/\D/g, '');
+                    if (cleanMobile.length === 10) cleanMobile = '91' + cleanMobile;
+                    window.open(`https://wa.me/${cleanMobile}?text=${encodeURIComponent(resolved)}`, '_blank');
                   }}
                   className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-sm"
                 >

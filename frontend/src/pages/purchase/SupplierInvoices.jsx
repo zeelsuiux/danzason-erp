@@ -15,6 +15,8 @@ import {
   Search,
   Warehouse,
   Landmark,
+  Printer,
+  Download,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
@@ -369,6 +371,154 @@ export default function SupplierInvoices() {
     return matchInv || matchVendorBill || matchSuppInv || matchChallan || matchSuppName || matchSuppCode || matchPo || matchItems;
   });
 
+  const handlePrintBill = (bill) => {
+    if (!bill) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Pop-up blocked. Please allow pop-ups to print the purchase bill.');
+      return;
+    }
+    const itemsHtml = (bill.items || []).map((it, idx) => `
+      <tr>
+        <td style="padding: 6px; border: 1px solid #e2e8f0; text-align: center;">${idx + 1}</td>
+        <td style="padding: 6px; border: 1px solid #e2e8f0;"><strong>${it.product_name || it.description || 'Item'}</strong></td>
+        <td style="padding: 6px; border: 1px solid #e2e8f0; text-align: center;">${it.sku || '—'}</td>
+        <td style="padding: 6px; border: 1px solid #e2e8f0; text-align: center;">${it.quantity || it.received_qty || 0} ${it.uom || 'PCS'}</td>
+        <td style="padding: 6px; border: 1px solid #e2e8f0; text-align: right;">₹${Number(it.unit_rate || it.rate || 0).toLocaleString('en-IN')}</td>
+        <td style="padding: 6px; border: 1px solid #e2e8f0; text-align: center;">${it.gst_rate !== undefined ? it.gst_rate : 18}%</td>
+        <td style="padding: 6px; border: 1px solid #e2e8f0; text-align: right;">₹${Number(it.total_amount || ((it.quantity || 1) * (it.unit_rate || 0)) || 0).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Purchase Bill Voucher - ${bill.invoice_number}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12px; color: #1e293b; padding: 24px; }
+          .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; }
+          .title { font-size: 20px; font-weight: bold; color: #0f172a; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+          .card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th { background: #f1f5f9; padding: 6px; border: 1px solid #cbd5e1; font-size: 11px; text-transform: uppercase; }
+          .totals { margin-top: 16px; display: flex; justify-content: flex-end; }
+          .totals-table { width: 280px; }
+          .totals-table td { padding: 4px 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">DANZA-SON ERP</div>
+            <div style="color: #64748b;">Purchase Bill / Inward Voucher</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 14px; font-weight: bold;">Bill #${bill.invoice_number}</div>
+            <div style="color: #64748b;">Date: ${new Date(bill.bill_date || bill.createdAt).toLocaleDateString('en-IN')}</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <strong>Supplier / Vendor:</strong><br>
+            <span style="font-size: 13px; font-weight: bold;">${bill.supplier_id?.supplier_name || 'Vendor'}</span><br>
+            GSTIN: ${bill.supplier_id?.gstin || 'Unregistered'}<br>
+            Contact: ${bill.supplier_id?.mobile || bill.supplier_id?.phone || 'On file'}
+          </div>
+          <div class="card">
+            <strong>Reference & Dispatch Details:</strong><br>
+            <strong>Challan Number:</strong> ${bill.challan_number || '—'}<br>
+            <strong>Challan Date:</strong> ${bill.challan_date ? new Date(bill.challan_date).toLocaleDateString('en-IN') : '—'}<br>
+            <strong>Vendor Bill Ref:</strong> ${bill.vendor_bill_number || 'N/A'}<br>
+            <strong>Destination Warehouse:</strong> ${bill.warehouse_id?.warehouse_name || 'Central Warehouse'}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 30px;">#</th>
+              <th>Item / Description</th>
+              <th style="width: 70px;">SKU</th>
+              <th style="width: 70px;">Qty</th>
+              <th style="width: 80px;">Rate</th>
+              <th style="width: 50px;">GST %</th>
+              <th style="width: 90px; text-align: right;">Total (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="totals">
+          <table class="totals-table">
+            <tr>
+              <td>Taxable Amount:</td>
+              <td style="text-align: right; font-weight: bold;">₹${Number(bill.taxable_amount || 0).toLocaleString('en-IN')}</td>
+            </tr>
+            <tr>
+              <td>CGST / SGST:</td>
+              <td style="text-align: right;">₹${(Number(bill.cgst_total || 0) + Number(bill.sgst_total || 0)).toLocaleString('en-IN')}</td>
+            </tr>
+            <tr style="border-top: 2px solid #0f172a; font-size: 13px;">
+              <td><strong>Grand Total:</strong></td>
+              <td style="text-align: right; font-weight: bold; color: #0f172a;">₹${Number(bill.grand_total || 0).toLocaleString('en-IN')}</td>
+            </tr>
+            <tr>
+              <td>Paid Amount:</td>
+              <td style="text-align: right; color: #16a34a;">₹${Number(bill.paid_amount || 0).toLocaleString('en-IN')}</td>
+            </tr>
+            <tr style="font-weight: bold; color: #dc2626;">
+              <td>Balance Due:</td>
+              <td style="text-align: right;">₹${Number(bill.balance_amount !== undefined ? bill.balance_amount : (bill.grand_total - (bill.paid_amount || 0))).toLocaleString('en-IN')}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 12px;">
+          <div>Warehouse Inward Seal & Signature</div>
+          <div>Authorized Accounts Signatory</div>
+        </div>
+        <script>window.onload = function() { window.print(); };</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const handleExportCSV = () => {
+    if (!filteredInvoices || filteredInvoices.length === 0) {
+      alert('No purchase bills to export.');
+      return;
+    }
+    const headers = ['Invoice #', 'Vendor Bill #', 'Challan #', 'Challan Date', 'Supplier Name', 'Bill Date', 'Due Date', 'Total (INR)', 'Paid (INR)', 'Balance Due (INR)', 'Payment Status'];
+    const rows = filteredInvoices.map((inv) => [
+      inv.invoice_number || '',
+      inv.vendor_bill_number || '',
+      inv.challan_number || '',
+      inv.challan_date ? new Date(inv.challan_date).toISOString().split('T')[0] : '',
+      `"${(inv.supplier_id?.supplier_name || '').replace(/"/g, '""')}"`,
+      inv.bill_date ? new Date(inv.bill_date).toISOString().split('T')[0] : '',
+      inv.due_date ? new Date(inv.due_date).toISOString().split('T')[0] : '',
+      inv.grand_total || 0,
+      inv.paid_amount || 0,
+      inv.balance_amount !== undefined ? inv.balance_amount : ((inv.grand_total || 0) - (inv.paid_amount || 0)),
+      inv.payment_status || 'unpaid',
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `purchase_bills_${purchaseTypeTab}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
@@ -380,13 +530,23 @@ export default function SupplierInvoices() {
           { label: 'Bills' },
         ]}
         actions={
-          <button
-            onClick={() => navigate('/purchase-bills/create')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-brand text-white hover:bg-brand-600 shadow-sm transition"
-          >
-            <Plus className="w-4 h-4" />
-            Create Purchase Bill
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 shadow-xs transition"
+              title="Export Current Tab Bills to CSV"
+            >
+              <Download className="w-4 h-4 text-slate-500" />
+              <span>Export CSV</span>
+            </button>
+            <button
+              onClick={() => navigate('/purchase-bills/create')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg bg-brand text-white hover:bg-brand-600 shadow-sm transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Purchase Bill</span>
+            </button>
+          </div>
         }
       />
 
@@ -983,27 +1143,37 @@ export default function SupplierInvoices() {
               );
             })()}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              {((selectedBill.balance_amount !== undefined ? selectedBill.balance_amount : (selectedBill.grand_total - (selectedBill.paid_amount || 0))) > 0) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const b = selectedBill;
-                    setSelectedBill(null);
-                    handleOpenPayment(b);
-                  }}
-                  className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition flex items-center gap-1.5"
-                >
-                  <CreditCard className="w-3.5 h-3.5" /> Record Payment
-                </button>
-              )}
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setSelectedBill(null)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition"
+                onClick={() => handlePrintBill(selectedBill)}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition flex items-center gap-1.5 shadow-xs"
               >
-                Close
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Voucher</span>
               </button>
+              <div className="flex items-center gap-2">
+                {((selectedBill.balance_amount !== undefined ? selectedBill.balance_amount : (selectedBill.grand_total - (selectedBill.paid_amount || 0))) > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const b = selectedBill;
+                      setSelectedBill(null);
+                      handleOpenPayment(b);
+                    }}
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition flex items-center gap-1.5"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" /> Record Payment
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedBill(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </Modal>

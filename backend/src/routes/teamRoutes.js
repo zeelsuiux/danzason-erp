@@ -23,6 +23,7 @@ router.delete('/hierarchy', teamController.deleteHierarchyLevel);
 router.get('/performance', teamController.getPerformanceReport);
 
 // Team Members CRUD
+router.get('/members', teamController.getTeamMembers);
 router.get('/', teamController.getTeamMembers);
 router.get('/:id', teamController.getTeamMemberById);
 router.post('/', teamController.createTeamMember);

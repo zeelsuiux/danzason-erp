@@ -794,17 +794,21 @@ export default function SupplierDetail() {
                   {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copySuccess ? 'Copied to Clipboard!' : 'Copy Text'}</span>
                 </button>
-                {supplier.mobile && (
-                  <a
-                    href={`https://wa.me/91${supplier.mobile.replace(/\D/g, '')}?text=${encodeURIComponent(aiMessage)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-xs"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span>Send via WhatsApp</span>
-                  </a>
-                )}
+                {supplier.mobile && (() => {
+                  let cleanMobile = supplier.mobile.replace(/\D/g, '');
+                  if (cleanMobile.length === 10) cleanMobile = '91' + cleanMobile;
+                  return (
+                    <a
+                      href={`https://wa.me/${cleanMobile}?text=${encodeURIComponent(aiMessage)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Send via WhatsApp</span>
+                    </a>
+                  );
+                })()}
               </div>
             </div>
           </div>

@@ -64,6 +64,7 @@ export default function SearchableSelect({
   }, [filteredOptions.length, highlightedIndex]);
 
   const isValueSelected = (optVal) => {
+    if (value === null || value === undefined || value === '') return false;
     if (isMulti) {
       return Array.isArray(value) && value.some((v) => String(v) === String(optVal));
     }
@@ -131,7 +132,10 @@ export default function SearchableSelect({
     }
   }, [highlightedIndex, isOpen]);
 
-  const selectedOption = !isMulti ? options.find((opt) => String(opt.value) === String(value)) : null;
+  const selectedOption =
+    !isMulti && value !== null && value !== undefined && value !== ''
+      ? options.find((opt) => String(opt.value) === String(value))
+      : null;
   const selectedMultiOptions = isMulti && Array.isArray(value)
     ? options.filter((opt) => value.some((v) => String(v) === String(opt.value)))
     : [];
