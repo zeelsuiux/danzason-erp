@@ -19,6 +19,7 @@ api.interceptors.response.use(
 
 export const dashboardService = {
   getCeoAnalytics: (params) => api.get('/dashboard/ceo', { params }),
+  getShortcutsSummary: () => api.get('/dashboard/shortcuts-summary'),
 };
 
 export default dashboardService;

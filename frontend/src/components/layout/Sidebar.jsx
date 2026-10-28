@@ -27,6 +27,7 @@ import {
   Landmark,
   CreditCard,
   Target,
+  Zap,
   ChevronDown,
 } from 'lucide-react';
 
@@ -184,8 +185,8 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Navigation Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-          {/* Standalone Dashboard Link (Direct 1-click access) */}
-          <div className="pb-2 border-b border-slate-800/80 mb-2">
+          {/* Standalone Top Executive Cockpit Links */}
+          <div className="pb-2 border-b border-slate-800/80 mb-2 space-y-1">
             <NavLink
               to="/dashboard"
               onClick={() => {
@@ -201,6 +202,23 @@ export default function Sidebar({ isOpen, onClose }) {
             >
               <LayoutDashboard className="w-4 h-4 text-emerald-400" />
               <span>CEO Command Center</span>
+            </NavLink>
+
+            <NavLink
+              to="/shortcuts"
+              onClick={() => {
+                if (window.innerWidth < 1024) onClose();
+              }}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isActive
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-800/70'
+                }`
+              }
+            >
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>Quick Summary & Shortcuts</span>
             </NavLink>
           </div>
 

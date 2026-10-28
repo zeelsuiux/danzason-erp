@@ -30,6 +30,7 @@ import SalesForecasting from './pages/sales/SalesForecasting';
 import MarketingDashboard from './pages/marketing/MarketingDashboard';
 import TargetGoalManagement from './pages/growth/TargetGoalManagement';
 import CeoCommandCenter from './pages/dashboard/CeoCommandCenter';
+import ModuleShortcutsSummary from './pages/dashboard/ModuleShortcutsSummary';
 import ProductsList from './pages/products/ProductsList';
 import ProductStockLedger from './pages/products/ProductStockLedger';
 import RawMaterialCatalog from './pages/rawMaterials/RawMaterialCatalog';
@@ -76,6 +77,10 @@ export default function App() {
           <Route index element={<CeoCommandCenter />} />
           <Route path="dashboard" element={<CeoCommandCenter />} />
           <Route path="ceo-command-center" element={<CeoCommandCenter />} />
+          <Route path="shortcuts" element={<ModuleShortcutsSummary />} />
+          <Route path="shortcuts-summary" element={<ModuleShortcutsSummary />} />
+          <Route path="summary" element={<ModuleShortcutsSummary />} />
+          <Route path="cockpit" element={<ModuleShortcutsSummary />} />
           
           {/* Products Catalog & Stock Ledger */}
           <Route path="products" element={<ProductsList />} />
