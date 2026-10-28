@@ -439,7 +439,7 @@ export default function PurchaseOrderDetail() {
             <span>{order.supplier_id?.supplier_name || 'Vendor'}</span>
           </p>
           {order.supplier_id?.gstin && (
-            <p className="text-[11px] text-slate-400 font-mono mt-0.5">GST: {order.supplier_id.gstin}</p>
+            <p className="text-[11px] text-slate-400 font-mono mt-0.5">GST: {order.supplier_id?.gstin}</p>
           )}
         </div>
 

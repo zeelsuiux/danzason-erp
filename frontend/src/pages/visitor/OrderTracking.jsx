@@ -151,9 +151,9 @@ export default function OrderTracking() {
                       day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                     })}
                   </span>
-                  {order.warehouse_id?.name && (
+                  {(order.warehouse_id?.name || order.warehouse_id?.warehouse_name) && (
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Dispatch Hub: {order.warehouse_id.name}
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Dispatch Hub: {order.warehouse_id?.name || order.warehouse_id?.warehouse_name}
                     </span>
                   )}
                 </p>

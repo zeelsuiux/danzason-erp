@@ -46,6 +46,8 @@ import ProcessingMaterialTracking from './pages/processing/ProcessingMaterialTra
 import FinanceModule from './pages/finance/FinanceModule';
 import OwnerCapitalManagement from './pages/finance/OwnerCapitalManagement';
 import TeamManagement from './pages/team/TeamManagement';
+import VisitorStorefront from './pages/visitor/VisitorStorefront';
+import OrderTracking from './pages/visitor/OrderTracking';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import LoginPage from './pages/auth/LoginPage';
@@ -60,6 +62,13 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/register" element={<Navigate to="/signup" replace />} />
+
+          {/* Public Visitor Storefront & Order Tracking */}
+          <Route path="/store" element={<VisitorStorefront />} />
+          <Route path="/shop" element={<VisitorStorefront />} />
+          <Route path="/track" element={<OrderTracking />} />
+          <Route path="/track/:ref" element={<OrderTracking />} />
+          <Route path="/order-tracking" element={<OrderTracking />} />
           <Route path="/api/v1/sales/forecasting" element={<Navigate to="/sales/forecasting" replace />} />
           <Route path="/api/sales/forecasting" element={<Navigate to="/sales/forecasting" replace />} />
           <Route path="/api/v1/forecasting" element={<Navigate to="/sales/forecasting" replace />} />

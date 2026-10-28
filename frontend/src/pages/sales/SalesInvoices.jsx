@@ -1755,7 +1755,7 @@ export default function SalesInvoices() {
                       </p>
                       {selectedInvoice.customer_id?.company_name && (
                         <p className="text-slate-600 font-medium">
-                          {selectedInvoice.customer_id.company_name}
+                          {selectedInvoice.customer_id?.company_name}
                         </p>
                       )}
                       <p className="text-slate-500 mt-1">
@@ -2013,7 +2013,7 @@ export default function SalesInvoices() {
                     Cust: {selectedInvoice.customer_id?.customer_name}
                   </div>
                   {selectedInvoice.customer_id?.mobile && (
-                    <div className="text-[10px]">Ph: {selectedInvoice.customer_id.mobile}</div>
+                    <div className="text-[10px]">Ph: {selectedInvoice.customer_id?.mobile}</div>
                   )}
 
                   <div className="border-t border-dashed border-slate-900 my-1.5" />
