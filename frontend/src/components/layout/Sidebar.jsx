@@ -28,6 +28,7 @@ import {
   CreditCard,
   Target,
   Zap,
+  LayoutGrid,
   ChevronDown,
 } from 'lucide-react';
 
@@ -204,27 +205,23 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
               <span>CEO Command Center</span>
             </NavLink>
 
-            {/* Unique 1-Click Slideout Quick-Peek Trigger */}
-            <button
-              type="button"
+            {/* Direct Page Link to Module Shortcuts */}
+            <NavLink
+              to="/shortcuts"
               onClick={() => {
-                if (onOpenQuickPeek) onOpenQuickPeek();
                 if (window.innerWidth < 1024) onClose();
               }}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent hover:from-amber-500/25 text-amber-300 border border-amber-500/30 hover:border-amber-400/60 shadow-xs group"
-              title="Open Quick Pulse HUD Drawer (Ctrl+K)"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isActive
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-800/70'
+                }`
+              }
             >
-              <div className="flex items-center gap-2.5">
-                <div className="relative">
-                  <Zap className="w-4 h-4 text-amber-400 fill-amber-400 group-hover:scale-110 transition" />
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
-                </div>
-                <span>Quick Pulse & Shortcuts</span>
-              </div>
-              <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono text-amber-300/80 bg-slate-900 border border-amber-500/30">
-                Ctrl+K
-              </kbd>
-            </button>
+              <LayoutGrid className="w-4 h-4 text-amber-400" />
+              <span>Module Shortcuts & Summary</span>
+            </NavLink>
           </div>
 
           {/* Collapsible Accordion Groups */}
