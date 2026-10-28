@@ -11,10 +11,11 @@ import {
   User,
   ChevronDown,
   Building,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export default function Navbar({ onToggleSidebar }) {
+export default function Navbar({ onToggleSidebar, onOpenQuickPeek }) {
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -62,7 +63,21 @@ export default function Navbar({ onToggleSidebar }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
+        {/* Quick Pulse HUD Drawer Button */}
+        <button
+          type="button"
+          onClick={onOpenQuickPeek}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 transition shadow-2xs group"
+          title="Open Quick Pulse HUD (Ctrl+K)"
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500 group-hover:scale-110 transition" />
+          <span className="hidden sm:inline">Quick Pulse</span>
+          <kbd className="hidden lg:inline-flex items-center px-1 py-0.2 rounded text-[10px] font-mono text-amber-600 bg-white border border-amber-200">
+            Ctrl+K
+          </kbd>
+        </button>
+
         <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs">
           <span>DANZA-SON ERP</span>
           <span className="text-[10px] text-emerald-600 font-mono font-bold bg-white px-1.5 py-0.2 rounded-full border border-slate-200">
