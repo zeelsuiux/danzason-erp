@@ -51,7 +51,6 @@ export default function ModuleShortcutsSummary() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Selected module for the dedicated summary view
   const selectedModuleId = searchParams.get('module');
@@ -203,33 +202,17 @@ export default function ModuleShortcutsSummary() {
     return shortcuts.find((item) => item.id === selectedModuleId) || null;
   }, [shortcuts, selectedModuleId]);
 
-  const categories = useMemo(() => {
-    return [
-      { id: 'all', label: 'All Modules' },
-      { id: 'Sales & Commercial', label: 'Sales & Commercial' },
-      { id: 'Operations & Stock', label: 'Operations & Stock' },
-      { id: 'Procurement', label: 'Procurement' },
-      { id: 'Manufacturing', label: 'Manufacturing' },
-      { id: 'Finance & Accounts', label: 'Finance & Accounts' },
-      { id: 'Growth & Planning', label: 'Growth & Planning' },
-      { id: 'Administration & Team', label: 'Administration & Team' },
-    ];
-  }, []);
-
   const filteredShortcuts = useMemo(() => {
+    if (!searchTerm.trim()) return shortcuts;
+    const q = searchTerm.toLowerCase();
     return shortcuts.filter((item) => {
-      if (selectedCategory !== 'all' && item.category !== selectedCategory) {
-        return false;
-      }
-      if (!searchTerm.trim()) return true;
-      const q = searchTerm.toLowerCase();
       const titleMatch = item.title?.toLowerCase().includes(q);
       const numMatch = item.number?.includes(q);
       const catMatch = item.category?.toLowerCase().includes(q);
       const descMatch = item.description?.toLowerCase().includes(q);
       return titleMatch || numMatch || catMatch || descMatch;
     });
-  }, [shortcuts, searchTerm, selectedCategory]);
+  }, [shortcuts, searchTerm]);
 
   const handleSelectModule = (item) => {
     setSearchParams({ module: item.id });
@@ -1145,37 +1128,6 @@ export default function ModuleShortcutsSummary() {
                 <Users className="w-6 h-6" />
               </div>
             </div>
-          </div>
-
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {categories.map((cat) => {
-              const count = cat.id === 'all'
-                ? shortcuts.length
-                : shortcuts.filter((s) => s.category === cat.id).length;
-              const isActive = selectedCategory === cat.id;
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 shrink-0 ${
-                    isActive
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <span>{cat.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
           </div>
 
           {/* Quick Search Bar with Live Filter Counter */}
