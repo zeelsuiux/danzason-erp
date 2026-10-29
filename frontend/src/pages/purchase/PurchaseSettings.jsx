@@ -218,8 +218,8 @@ export default function PurchaseSettings() {
   const [pricingSaving, setPricingSaving] = useState(false);
   const [pricingSuccessMsg, setPricingSuccessMsg] = useState('');
   const [pricingErrorMsg, setPricingErrorMsg] = useState('');
-  const [samplePurchasePrice, setSamplePurchasePrice] = useState(150);
   const [isAddSlabModalOpen, setIsAddSlabModalOpen] = useState(false);
+  const [slabModalError, setSlabModalError] = useState('');
   const [editingSlabIndex, setEditingSlabIndex] = useState(null);
   const [slabFormData, setSlabFormData] = useState({
     min_qty: 1,
@@ -246,13 +246,13 @@ export default function PurchaseSettings() {
     }
   };
 
-  const handleSavePricingRules = async (updatedRanges, updatedMethod) => {
+  const handleSavePricingRules = async (updatedRanges) => {
     try {
       setPricingSaving(true);
       setPricingErrorMsg('');
       const payload = {
         name: pricingRule?.name || 'Channel & Quantity Tiered Pricing Policy',
-        pricing_method: updatedMethod || pricingRule?.pricing_method || 'markup',
+        pricing_method: 'markup',
         ranges: updatedRanges || pricingRule?.ranges || [],
         notes: pricingRule?.notes || '',
         is_active: true,
@@ -260,7 +260,7 @@ export default function PurchaseSettings() {
       const res = await St.savePricingRules(payload);
       if (res && res.data) {
         setPricingRule(res.data);
-        setPricingSuccessMsg('Pricing policy saved and synchronized successfully!');
+        setPricingSuccessMsg('Pricing policy saved successfully!');
         setTimeout(() => setPricingSuccessMsg(''), 4000);
       }
     } catch (err) {
@@ -272,20 +272,23 @@ export default function PurchaseSettings() {
   };
 
   const handleOpenAddSlab = () => {
-    const ranges = pricingRule?.ranges || [];
+    const ranges = (pricingRule?.ranges || []).slice().sort((a, b) => a.min_qty - b.min_qty);
     let nextMin = 1;
     let nextMax = 100;
     if (ranges.length > 0) {
       const highest = Math.max(...ranges.map((r) => r.max_qty || 0));
       if (highest < 999999) {
         nextMin = highest + 1;
-        nextMax = nextMin + 200;
+        nextMax = nextMin + 199;
       } else {
-        nextMin = 1001;
-        nextMax = 5000;
+        const finite = ranges.filter((r) => r.max_qty < 999999);
+        const maxFinite = finite.length > 0 ? Math.max(...finite.map((r) => r.max_qty)) : 0;
+        nextMin = maxFinite + 1;
+        nextMax = nextMin + 199;
       }
     }
     setEditingSlabIndex(null);
+    setSlabModalError('');
     setSlabFormData({
       min_qty: nextMin,
       max_qty: nextMax,
@@ -293,7 +296,7 @@ export default function PurchaseSettings() {
       b2c_percent: 10,
       d2c_percent: 15,
       retail_percent: 8,
-      label: 'Tier (' + nextMin + ' - ' + nextMax + ' Qty)',
+      label: `Tier (${nextMin} - ${nextMax} Qty)`,
     });
     setIsAddSlabModalOpen(true);
   };
@@ -302,6 +305,7 @@ export default function PurchaseSettings() {
     const slab = pricingRule?.ranges?.[index];
     if (!slab) return;
     setEditingSlabIndex(index);
+    setSlabModalError('');
     setSlabFormData({
       min_qty: slab.min_qty,
       max_qty: slab.max_qty,
@@ -316,17 +320,44 @@ export default function PurchaseSettings() {
 
   const handleSaveSlab = async (e) => {
     e.preventDefault();
-    const currentRanges = [...(pricingRule?.ranges || [])];
+    setSlabModalError('');
+
+    const minQty = Number(slabFormData.min_qty);
+    const maxQty = Number(slabFormData.max_qty);
+
+    if (!minQty || minQty < 1) {
+      setSlabModalError('Minimum quantity must be at least 1.');
+      return;
+    }
+    if (!maxQty || maxQty < minQty) {
+      setSlabModalError(`Maximum quantity (${maxQty}) cannot be less than minimum quantity (${minQty}).`);
+      return;
+    }
+
+    // Overlap validation with existing ranges
+    const existingRanges = (pricingRule?.ranges || []).filter((_, idx) => idx !== editingSlabIndex);
+    for (const r of existingRanges) {
+      const rMin = Number(r.min_qty);
+      const rMax = Number(r.max_qty || 999999);
+      if (Math.max(minQty, rMin) <= Math.min(maxQty, rMax)) {
+        setSlabModalError(
+          `Quantity range (${minQty} - ${maxQty}) overlaps with existing range (${rMin} - ${rMax}). Ranges cannot overlap. The next range must start from at least ${rMax + 1}.`
+        );
+        return;
+      }
+    }
+
     const newSlab = {
-      min_qty: Number(slabFormData.min_qty) || 1,
-      max_qty: Number(slabFormData.max_qty) || 999999,
+      min_qty: minQty,
+      max_qty: maxQty,
       b2b_percent: Number(slabFormData.b2b_percent) || 0,
       b2c_percent: Number(slabFormData.b2c_percent) || 0,
       d2c_percent: Number(slabFormData.d2c_percent) || 0,
       retail_percent: Number(slabFormData.retail_percent) || 0,
-      label: slabFormData.label.trim() || (slabFormData.min_qty + ' - ' + slabFormData.max_qty + ' Qty'),
+      label: slabFormData.label.trim() || `${minQty} - ${maxQty >= 999999 ? '1000+' : maxQty} Qty`,
     };
 
+    const currentRanges = [...(pricingRule?.ranges || [])];
     if (editingSlabIndex !== null) {
       currentRanges[editingSlabIndex] = newSlab;
     } else {
@@ -1822,43 +1853,15 @@ export default function PurchaseSettings() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 max-w-2xl">
-                  Automated sales pricing suggestions based on product purchase cost. Configured percentages are automatically added to purchase rates across <strong>B2B</strong>, <strong>B2C</strong>, <strong>D2C</strong>, and <strong>Retail</strong> channels when generating sales orders and invoices.
+                  Configure quantity-based percentage markups added to base purchase cost for <strong>B2B</strong>, <strong>B2C</strong>, <strong>D2C</strong>, and <strong>Retail</strong> channels. Ranges must be continuous without overlap (e.g. 1 - 100, 101 - 300, etc.).
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Pricing Method Selector */}
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => handleSavePricingRules(pricingRule?.ranges, 'markup')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      (pricingRule?.pricing_method || 'markup') === 'markup'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Markup Mode: Sales Rate = Purchase Rate * (1 + % / 100)"
-                  >
-                    Markup Mode (%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSavePricingRules(pricingRule?.ranges, 'margin')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      pricingRule?.pricing_method === 'margin'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Margin Mode: Sales Rate = Purchase Rate / (1 - % / 100)"
-                  >
-                    Margin Mode (%)
-                  </button>
-                </div>
-
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleOpenAddSlab}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition shadow-xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>+ Add Quantity Slab / Range</span>
@@ -1879,57 +1882,6 @@ export default function PurchaseSettings() {
                 <span>{pricingErrorMsg}</span>
               </div>
             )}
-
-            {/* Channel Explanatory Cards Strip (B2B, B2C, D2C, Retail) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-700">B2B Wholesale</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    Bulk Dealers
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Bulk trade buyers, GST dealers, and distributors. Typically lower markup percentages on volume.
-                </p>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-blue-700">B2C Retail</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                    Walk-in Customers
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Individual direct consumers, cash counter buyers, and small retail purchases.
-                </p>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-purple-700">D2C Online</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
-                    E-Commerce Store
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Direct brand website orders, social storefronts, and online marketplace shoppers.
-                </p>
-              </div>
-
-              <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-amber-700">Retail Stores</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                    Outlet Network
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Partner retail shopfronts, franchisee billing, and multi-brand outlet orders.
-                </p>
-              </div>
-            </div>
 
             {/* Quantity-Wise Pricing Slabs Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -2031,96 +1983,6 @@ export default function PurchaseSettings() {
                         </tr>
                       ))
                     )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* LIVE PRICE SIMULATOR (REAL-TIME PREVIEW) */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    <span>Live Selling Price Calculator (Real-Time Preview)</span>
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Test any base purchase cost to preview automatically generated selling prices across all channels and quantities.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
-                    Sample Purchase Cost (₹):
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={samplePurchasePrice}
-                    onChange={(e) => setSamplePurchasePrice(Math.max(1, Number(e.target.value) || 0))}
-                    className="w-28 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-extrabold uppercase text-[11px] border-b border-slate-200">
-                    <tr>
-                      <th className="p-3">Order Quantity Slab</th>
-                      <th className="p-3">Base Purchase Cost</th>
-                      <th className="p-3 text-right text-emerald-800 bg-emerald-50/40">B2B Selling Price</th>
-                      <th className="p-3 text-right text-blue-800 bg-blue-50/40">B2C Selling Price</th>
-                      <th className="p-3 text-right text-purple-800 bg-purple-50/40">D2C Selling Price</th>
-                      <th className="p-3 text-right text-amber-800 bg-amber-50/40">Retail Selling Price</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {(pricingRule?.ranges || []).map((slab, idx) => {
-                      const cost = Number(samplePurchasePrice) || 150;
-                      const isMargin = pricingRule?.pricing_method === 'margin';
-                      const calcPrice = (pct) => {
-                        if (isMargin) {
-                          return pct < 100 ? (cost / (1 - pct / 100)).toFixed(2) : cost.toFixed(2);
-                        }
-                        return (cost * (1 + pct / 100)).toFixed(2);
-                      };
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/60 transition">
-                          <td className="p-3 font-bold font-sans text-slate-800">
-                            {slab.min_qty} - {slab.max_qty >= 999999 ? '1000+' : slab.max_qty} Units
-                            <span className="text-[10px] text-slate-400 block font-normal">{slab.label}</span>
-                          </td>
-                          <td className="p-3 font-bold text-slate-600">
-                            ₹{cost.toFixed(2)}
-                          </td>
-                          <td className="p-3 text-right font-black text-emerald-900 bg-emerald-50/30">
-                            ₹{calcPrice(slab.b2b_percent)}
-                            <span className="text-[10px] text-emerald-700 block font-normal font-sans">
-                              (+{slab.b2b_percent}%)
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-black text-blue-900 bg-blue-50/30">
-                            ₹{calcPrice(slab.b2c_percent)}
-                            <span className="text-[10px] text-blue-700 block font-normal font-sans">
-                              (+{slab.b2c_percent}%)
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-black text-purple-900 bg-purple-50/30">
-                            ₹{calcPrice(slab.d2c_percent)}
-                            <span className="text-[10px] text-purple-700 block font-normal font-sans">
-                              (+{slab.d2c_percent}%)
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-black text-amber-900 bg-amber-50/30">
-                            ₹{calcPrice(slab.retail_percent)}
-                            <span className="text-[10px] text-amber-700 block font-normal font-sans">
-                              (+{slab.retail_percent}%)
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
                   </tbody>
                 </table>
               </div>
@@ -3012,6 +2874,13 @@ export default function PurchaseSettings() {
         size="md"
       >
         <form onSubmit={handleSaveSlab} className="space-y-4 text-xs font-sans text-slate-800">
+          {slabModalError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <span>{slabModalError}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">Min Quantity (From) *</label>
@@ -3020,9 +2889,15 @@ export default function PurchaseSettings() {
                 min="1"
                 required
                 value={slabFormData.min_qty}
-                onChange={(e) => setSlabFormData({ ...slabFormData, min_qty: e.target.value })}
+                onChange={(e) => {
+                  setSlabModalError('');
+                  setSlabFormData({ ...slabFormData, min_qty: e.target.value });
+                }}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Must start after previous slab (no overlapping)
+              </span>
             </div>
             <div>
               <label className="block font-bold text-slate-700 mb-1">Max Quantity (To) *</label>
@@ -3031,9 +2906,15 @@ export default function PurchaseSettings() {
                 min="1"
                 required
                 value={slabFormData.max_qty}
-                onChange={(e) => setSlabFormData({ ...slabFormData, max_qty: e.target.value })}
+                onChange={(e) => {
+                  setSlabModalError('');
+                  setSlabFormData({ ...slabFormData, max_qty: e.target.value });
+                }}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold focus:border-brand outline-none"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Use 999999 for open-ended / bulk tier
+              </span>
             </div>
           </div>
 

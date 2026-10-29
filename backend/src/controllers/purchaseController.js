@@ -2483,17 +2483,17 @@ exports.getPricingRules = async (req, res) => {
 
 exports.savePricingRules = async (req, res) => {
   try {
-    const { name, pricing_method, ranges, notes, is_active } = req.body;
+    const { name, ranges, notes, is_active } = req.body;
     let rule = await PricingRule.findOne({});
     if (!rule) {
       rule = new PricingRule();
     }
     if (name) rule.name = name.trim();
-    if (pricing_method) rule.pricing_method = pricing_method;
+    rule.pricing_method = 'markup';
     if (notes !== undefined) rule.notes = notes.trim();
     if (is_active !== undefined) rule.is_active = is_active;
     if (Array.isArray(ranges)) {
-      rule.ranges = ranges.map((r) => ({
+      const sanitized = ranges.map((r) => ({
         min_qty: Number(r.min_qty) || 1,
         max_qty: Number(r.max_qty) || 999999,
         b2b_percent: Number(r.b2b_percent) || 0,
@@ -2502,6 +2502,33 @@ exports.savePricingRules = async (req, res) => {
         retail_percent: Number(r.retail_percent) || 0,
         label: (r.label || '').trim(),
       })).sort((a, b) => a.min_qty - b.min_qty);
+
+      // Overlap and boundary validation
+      for (let i = 0; i < sanitized.length; i++) {
+        const curr = sanitized[i];
+        if (curr.min_qty < 1) {
+          return res.status(400).json({
+            success: false,
+            message: `Minimum quantity must be at least 1. Found ${curr.min_qty}.`,
+          });
+        }
+        if (curr.max_qty < curr.min_qty) {
+          return res.status(400).json({
+            success: false,
+            message: `Maximum quantity (${curr.max_qty}) cannot be less than minimum quantity (${curr.min_qty}).`,
+          });
+        }
+        if (i > 0) {
+          const prev = sanitized[i - 1];
+          if (curr.min_qty <= prev.max_qty) {
+            return res.status(400).json({
+              success: false,
+              message: `Quantity range (${curr.min_qty} - ${curr.max_qty}) overlaps with previous range (${prev.min_qty} - ${prev.max_qty}). Next range must start from at least ${prev.max_qty + 1}.`,
+            });
+          }
+        }
+      }
+      rule.ranges = sanitized;
     }
     await rule.save();
     res.json({

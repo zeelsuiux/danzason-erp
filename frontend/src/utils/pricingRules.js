@@ -102,14 +102,8 @@ export const calculateDynamicUnitPrice = (product, quantity, channel = 'B2B', pr
       else if (ch === 'Retail') percent = Number(matchedRange.retail_percent || 0);
       else percent = Number(matchedRange.b2b_percent || 0);
 
-      const method = pricingRules.pricing_method || 'markup';
-      let calculated = 0;
-      if (method === 'margin' && percent < 100) {
-        calculated = baseCost / (1 - percent / 100);
-      } else {
-        calculated = baseCost * (1 + percent / 100);
-      }
-
+      // Markup percentage added to base purchase cost
+      const calculated = baseCost * (1 + percent / 100);
       const unitPrice = Math.round(calculated * 100) / 100;
       const slabLabel = matchedRange.label || `${matchedRange.min_qty}-${matchedRange.max_qty || '+'}`;
 
@@ -118,7 +112,7 @@ export const calculateDynamicUnitPrice = (product, quantity, channel = 'B2B', pr
         baseCost,
         percent,
         slabLabel,
-        method,
+        method: 'markup',
         isDynamic: true,
         channel: ch,
       };
