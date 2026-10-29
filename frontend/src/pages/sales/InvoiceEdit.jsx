@@ -21,7 +21,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import StatusBadge from '../../components/common/StatusBadge';
 import ProductSearchDropdown from '../../components/common/ProductSearchDropdown';
 import { salesApi, Dt, St } from '../../services/procurementService';
-import { calculateDynamicUnitPrice } from '../../utils/pricingRules';
+import { calculateDynamicUnitPrice, detectCustomerChannel } from '../../utils/pricingRules';
 
 export default function InvoiceEdit() {
   const { id } = useParams();
@@ -207,10 +207,7 @@ export default function InvoiceEdit() {
     const cust = customers.find((c) => (c._id || c.id) === custId);
     let detectedTier = 'B2B';
     if (cust) {
-      const type = String(cust.customer_type || '').toUpperCase();
-      if (['B2C', 'RETAIL', 'D2C'].includes(type)) {
-        detectedTier = 'B2C';
-      }
+      detectedTier = detectCustomerChannel(cust);
     }
     setForm((prev) => ({
       ...prev,
@@ -536,8 +533,13 @@ export default function InvoiceEdit() {
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Customer Name <span className="text-rose-500">*</span>
+              <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Customer Name <span className="text-rose-500">*</span></span>
+                {form.customer_id && (
+                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                    {pricingTier} Customer
+                  </span>
+                )}
               </label>
               <SearchableSelect
                 options={customers.map((c) => ({
@@ -550,36 +552,6 @@ export default function InvoiceEdit() {
                 placeholder="Search & select customer..."
                 allowClear={false}
               />
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Pricing Tier
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => handlePricingTierChange('B2B')}
-                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                    pricingTier === 'B2B'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span>B2B Wholesale</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePricingTierChange('B2C')}
-                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                    pricingTier === 'B2C'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span>B2C Retail/MRP</span>
-                </button>
-              </div>
             </div>
 
             <div>

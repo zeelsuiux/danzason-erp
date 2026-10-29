@@ -159,13 +159,6 @@ export default function ProductSearchDropdown({
               <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono truncate mt-0.5">
                 <span>SKU: {activeProduct.sku || activeProduct.sku_id || activeProduct.product_code || 'N/A'}</span>
                 {activeProduct.color && <span>• {activeProduct.color}</span>}
-                <span className={`px-1.5 py-0.2 rounded font-bold text-[9px] ${
-                  pricingTier === 'B2C'
-                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                    : 'bg-blue-100 text-blue-800 border border-blue-200'
-                }`}>
-                  {pricingTier}
-                </span>
               </div>
             </div>
           ) : (

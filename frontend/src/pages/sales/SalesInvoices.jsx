@@ -987,10 +987,15 @@ export default function SalesInvoices() {
           )}
 
           {/* Primary Invoice Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 text-sm">
             <div>
-              <label className="block font-bold text-slate-700 mb-1.5 text-sm">
-                Customer / Client <span className="text-rose-500">*</span>
+              <label className="block font-bold text-slate-700 mb-1.5 text-sm flex items-center justify-between">
+                <span>Customer / Client <span className="text-rose-500">*</span></span>
+                {directForm.customer_id && (
+                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                    {directPricingTier} Customer
+                  </span>
+                )}
               </label>
               <SearchableSelect
                 options={customers.map((c) => ({
@@ -1004,35 +1009,6 @@ export default function SalesInvoices() {
                 searchPlaceholder="Search by name, code or GSTIN..."
                 emptyMessage="No matching customers found"
               />
-            </div>
-
-            {/* Pricing Channel & Tier Selector (B2B, B2C, D2C, Retail) */}
-            <div>
-              <label className="block font-bold text-slate-700 mb-1.5 text-sm flex items-center justify-between">
-                <span>Pricing Channel</span>
-                <span className="text-[10px] text-slate-400 font-normal">Auto-detected from customer</span>
-              </label>
-              <div className="grid grid-cols-4 rounded-xl p-1 bg-slate-100 border border-slate-200 gap-1 min-h-[42px]">
-                {CHANNELS.map((ch) => {
-                  const cfg = CHANNEL_CONFIG[ch];
-                  const active = directPricingTier === ch;
-                  return (
-                    <button
-                      key={ch}
-                      type="button"
-                      onClick={() => handlePricingTierChange(ch)}
-                      className={`py-1 px-1 rounded-lg text-xs font-bold transition flex items-center justify-center gap-0.5 text-center ${
-                        active
-                          ? cfg.btnClass
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                      }`}
-                      title={cfg.label}
-                    >
-                      <span>{ch}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <div>
