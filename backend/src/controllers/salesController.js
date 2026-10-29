@@ -559,7 +559,7 @@ exports.createSalesOrder = async (req, res) => {
       count: 1,
       amount: grand_total,
       department: 'Sales & CRM',
-      notes: `Order #${soNumber} confirmed`,
+      notes: `Order #${salesOrder.so_number || ''} confirmed`,
     }).catch(() => {});
 
     const populated = await SalesOrder.findById(salesOrder._id)
@@ -1863,7 +1863,7 @@ exports.createVisitorOrder = async (req, res) => {
       count: 1,
       amount: grand_total,
       department: 'Sales & CRM',
-      notes: `Order #${soNumber} confirmed`,
+      notes: `Order #${salesOrder.so_number || ''} confirmed`,
     }).catch(() => {});
 
     const populated = await SalesOrder.findById(salesOrder._id)
