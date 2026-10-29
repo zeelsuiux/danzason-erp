@@ -1190,18 +1190,10 @@ export default function SalesInvoices() {
                               readOnly
                               disabled
                               value={it.unit_price}
-                              title={it.pricing_info || `${directPricingTier} Rate calculated from purchase cost + panel % markup`}
                               className="w-full pl-5 pr-2 py-1.5 border border-emerald-300 rounded text-sm text-right font-black font-mono bg-emerald-50/50 text-emerald-950 cursor-not-allowed select-none"
                             />
                             <Lock className="w-2.5 h-2.5 text-emerald-700 absolute left-1.5 top-2.5 pointer-events-none" />
                           </div>
-                          <span className="text-[10px] text-slate-500 font-mono block text-right mt-0.5">
-                            {it.pricing_info ? (
-                              <span className="text-emerald-700 font-semibold">{it.pricing_info}</span>
-                            ) : (
-                              `${directPricingTier} Rate`
-                            )}
-                          </span>
                         </td>
 
                         {/* 7. Discount (% or ₹) with dual live display */}

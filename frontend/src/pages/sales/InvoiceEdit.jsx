@@ -734,11 +734,6 @@ export default function InvoiceEdit() {
                           />
                           <Lock className="w-3 h-3 text-slate-400 absolute left-2 top-2.5 pointer-events-none" />
                         </div>
-                        {it.pricing_info && (
-                          <p className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 mt-1 font-mono leading-tight">
-                            {it.pricing_info}
-                          </p>
-                        )}
                       </td>
 
                       {/* Discount (% / ₹) Dual Mode */}
