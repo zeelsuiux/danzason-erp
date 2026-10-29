@@ -490,6 +490,8 @@ export default function SalesOrders() {
       setFormError('');
       const payload = {
         ...createForm,
+        warehouse_id: createForm.warehouse_id || undefined,
+        expected_delivery_date: createForm.expected_delivery_date || undefined,
         pricing_tier: pricingTier,
         final_discount_type: finalDiscountType,
         final_discount_value: finalDiscountValue,

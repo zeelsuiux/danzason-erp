@@ -525,10 +525,12 @@ exports.createSalesOrder = async (req, res) => {
     const grand_total = Math.round(Math.max(0, subtotal - discount_total) + tax_total + Number(shipping_charges));
     const round_off = grand_total - (subtotal - discount_total + tax_total + Number(shipping_charges));
 
+    const validWarehouseId = warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id) ? warehouse_id : null;
+
     const salesOrder = new SalesOrder({
       customer_id,
-      expected_delivery_date,
-      warehouse_id,
+      expected_delivery_date: expected_delivery_date ? new Date(expected_delivery_date) : null,
+      warehouse_id: validWarehouseId,
       pricing_tier: activeTier,
       items: processedItems,
       subtotal,
@@ -1130,9 +1132,12 @@ exports.createDirectSalesInvoice = async (req, res) => {
 
     const dueDateCalculated = due_date ? new Date(due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
+    const validInvoiceWhId = warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id) ? warehouse_id : null;
+
     const invoice = new SalesInvoice({
       so_id: null, // Direct invoice without quotation
       customer_id,
+      warehouse_id: validInvoiceWhId,
       pricing_tier: activeTier,
       invoice_date: invoice_date ? new Date(invoice_date) : new Date(),
       due_date: dueDateCalculated,

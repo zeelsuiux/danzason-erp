@@ -7,6 +7,7 @@ const invoiceItemSchema = new mongoose.Schema(
       ref: 'Product',
       required: false,
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     product_name: {
       type: String,
@@ -71,6 +72,7 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SalesOrder',
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     customer_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -81,6 +83,7 @@ const salesInvoiceSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Warehouse',
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     invoice_date: {
       type: Date,

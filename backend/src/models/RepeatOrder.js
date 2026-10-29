@@ -181,11 +181,13 @@ const repeatOrderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Warehouse',
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     converted_invoice_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SalesInvoice',
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     converted_invoice_number: {
       type: String,

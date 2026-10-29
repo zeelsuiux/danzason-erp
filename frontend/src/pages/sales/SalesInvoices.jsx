@@ -658,6 +658,7 @@ export default function SalesInvoices() {
 
       const payload = {
         ...directForm,
+        warehouse_id: directForm.warehouse_id || undefined,
         pricing_tier: directPricingTier,
         final_discount_type: directFinalDiscountType,
         final_discount_value: directFinalDiscountValue,

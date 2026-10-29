@@ -7,6 +7,7 @@ const orderItemSchema = new mongoose.Schema(
       ref: 'Product',
       required: false,
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     product_name: {
       type: String,
@@ -86,6 +87,7 @@ const salesOrderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Warehouse',
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     items: [orderItemSchema],
     pricing_tier: {

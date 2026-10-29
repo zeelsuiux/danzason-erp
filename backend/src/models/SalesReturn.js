@@ -74,6 +74,7 @@ const salesReturnSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Warehouse',
       default: null,
+      set: (v) => (v === '' || !v ? null : v),
     },
     return_date: {
       type: Date,
