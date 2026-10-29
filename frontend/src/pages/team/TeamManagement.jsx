@@ -88,7 +88,7 @@ export default function TeamManagement() {
 
   // Quick Add Department State
   const [isQuickDeptModalOpen, setIsQuickDeptModalOpen] = useState(false);
-  const [quickDeptForm, setQuickDeptForm] = useState({ name: '', code: '', description: '' });
+  const [quickDeptForm, setQuickDeptForm] = useState({ name: '', code: '', description: '', sub_modules: [] });
   const [quickDeptSaving, setQuickDeptSaving] = useState(false);
   const [quickDeptError, setQuickDeptError] = useState('');
 
@@ -286,7 +286,7 @@ export default function TeamManagement() {
         department: createdName,
       }));
       setIsQuickDeptModalOpen(false);
-      setQuickDeptForm({ name: '', code: '', description: '' });
+      setQuickDeptForm({ name: '', code: '', description: '', sub_modules: [] });
     } catch (err) {
       setQuickDeptError(err.message || 'Failed to create department');
     } finally {
@@ -2074,7 +2074,7 @@ export default function TeamManagement() {
                   <button
                     type="button"
                     onClick={() => {
-                      setQuickDeptForm({ name: '', code: '', description: '' });
+                      setQuickDeptForm({ name: '', code: '', description: '', sub_modules: [] });
                       setQuickDeptError('');
                       setIsQuickDeptModalOpen(true);
                     }}
@@ -2734,6 +2734,50 @@ export default function TeamManagement() {
                 placeholder="Brief description of department functions..."
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none resize-none"
               />
+            </div>
+
+            {/* Quick Operations Selection */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <label className="block font-bold text-slate-800 text-xs">
+                Department Operations & Workflows
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Sales Orders',
+                  'Sales Invoices',
+                  'Quotations',
+                  'Customer Leads',
+                  'Scheduled Follow-ups',
+                  'Purchase Orders',
+                  'Purchase Bills',
+                  'Job Orders (MPO)',
+                  'Product Inventory',
+                  'Bank & Cash Accounts',
+                ].map((item) => {
+                  const isSelected = quickDeptForm.sub_modules?.includes(item);
+                  return (
+                    <button
+                      type="button"
+                      key={item}
+                      onClick={() => {
+                        const cur = quickDeptForm.sub_modules || [];
+                        setQuickDeptForm({
+                          ...quickDeptForm,
+                          sub_modules: isSelected ? cur.filter((x) => x !== item) : [...cur, item],
+                        });
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition flex items-center gap-1 border cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {isSelected ? <Check className="w-2.5 h-2.5" /> : <Plus className="w-2.5 h-2.5 text-slate-400" />}
+                      <span>{item}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

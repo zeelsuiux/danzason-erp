@@ -14,12 +14,48 @@ const GoodsReceiptNote = require('../models/GoodsReceiptNote');
 // DEFAULT DEPARTMENTS SEEDING HELPER
 // ==============================================================================
 const DEFAULT_DEPARTMENTS = [
-  { name: 'Sales & CRM', code: 'SALES', description: 'Inbound inquiries, B2B sales pipelines, quotations, and client relations', is_system: true },
-  { name: 'Procurement & Purchase', code: 'PURCHASE', description: 'Vendor management, raw material & commercial goods purchase orders', is_system: true },
-  { name: 'Manufacturing & Job Work', code: 'MFG', description: 'Cutting, stitching, job work contracts, and finished garment production lines', is_system: true },
-  { name: 'Finance & Accounts', code: 'FINANCE', description: 'Income collections, supplier disbursements, ledger audits, and tax accounts', is_system: true },
-  { name: 'Inventory & Warehouse', code: 'INVENTORY', description: 'Stock ledger movements, warehouse bin allocations, and material audits', is_system: true },
-  { name: 'Management & Admin', code: 'ADMIN', description: 'Executive leadership, organizational administration, and system governance', is_system: true },
+  {
+    name: 'Sales & CRM',
+    code: 'SALES',
+    description: 'Inbound inquiries, B2B sales pipelines, quotations, and client relations',
+    sub_modules: ['Sales Orders', 'Sales Invoices', 'Quotations', 'Customer Directory', 'Customer Leads', 'Scheduled Follow-ups', 'Sales Returns'],
+    is_system: true,
+  },
+  {
+    name: 'Procurement & Purchase',
+    code: 'PURCHASE',
+    description: 'Vendor management, raw material & commercial goods purchase orders',
+    sub_modules: ['Purchase Orders', 'Purchase Bills', 'Suppliers Directory', 'RFQ & Inquiries', 'Supplier Rejections'],
+    is_system: true,
+  },
+  {
+    name: 'Manufacturing & Job Work',
+    code: 'MFG',
+    description: 'Cutting, stitching, job work contracts, and finished garment production lines',
+    sub_modules: ['Job Orders (MPO)', 'Material Tracking', 'Job Bills', 'Job Work Contractors'],
+    is_system: true,
+  },
+  {
+    name: 'Finance & Accounts',
+    code: 'FINANCE',
+    description: 'Income collections, supplier disbursements, ledger audits, and tax accounts',
+    sub_modules: ['Bank & Cash Accounts', 'Inflow & Outflow', 'Expense Vouchers', 'Owner Capital & Drawings'],
+    is_system: true,
+  },
+  {
+    name: 'Inventory & Warehouse',
+    code: 'INVENTORY',
+    description: 'Stock ledger movements, warehouse bin allocations, and material audits',
+    sub_modules: ['Product Inventory', 'Raw Materials', 'Stock Ledgers', 'Warehouses'],
+    is_system: true,
+  },
+  {
+    name: 'Management & Admin',
+    code: 'ADMIN',
+    description: 'Executive leadership, organizational administration, and system governance',
+    sub_modules: ['Team & Access', 'Roles & Permissions', 'Performance Reports', 'Company Settings'],
+    is_system: true,
+  },
 ];
 
 async function ensureDefaultDepartments() {
@@ -28,6 +64,14 @@ async function ensureDefaultDepartments() {
     if (count === 0) {
       for (const d of DEFAULT_DEPARTMENTS) {
         await Department.create(d);
+      }
+    } else {
+      // Sync sub_modules for existing system departments if empty
+      for (const d of DEFAULT_DEPARTMENTS) {
+        await Department.updateOne(
+          { name: d.name, $or: [{ sub_modules: { $exists: false } }, { sub_modules: { $size: 0 } }] },
+          { $set: { sub_modules: d.sub_modules } }
+        );
       }
     }
   } catch (err) {
@@ -271,7 +315,7 @@ exports.getDepartments = async (req, res) => {
 
 exports.createDepartment = async (req, res) => {
   try {
-    const { name, code, description, head_of_department, is_active } = req.body;
+    const { name, code, description, head_of_department, is_active, sub_modules } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Department Name is required.' });
@@ -296,11 +340,17 @@ exports.createDepartment = async (req, res) => {
       });
     }
 
+    // Sanitize sub_modules
+    const cleanSubModules = Array.isArray(sub_modules)
+      ? sub_modules.map((m) => String(m).trim()).filter(Boolean)
+      : [];
+
     const department = new Department({
       name: trimmedName,
       code: cleanCode,
       description: (description || '').trim(),
       head_of_department: (head_of_department || '').trim(),
+      sub_modules: cleanSubModules,
       is_active: is_active !== undefined ? is_active : true,
       is_system: false,
     });
@@ -325,7 +375,7 @@ exports.updateDepartment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Department not found.' });
     }
 
-    const { name, code, description, head_of_department, is_active } = req.body;
+    const { name, code, description, head_of_department, is_active, sub_modules } = req.body;
     const oldName = department.name;
 
     if (name && name.trim()) {
@@ -371,6 +421,11 @@ exports.updateDepartment = async (req, res) => {
     if (description !== undefined) department.description = description.trim();
     if (head_of_department !== undefined) department.head_of_department = head_of_department.trim();
     if (is_active !== undefined) department.is_active = is_active;
+    if (sub_modules !== undefined) {
+      department.sub_modules = Array.isArray(sub_modules)
+        ? sub_modules.map((m) => String(m).trim()).filter(Boolean)
+        : [];
+    }
 
     await department.save();
 

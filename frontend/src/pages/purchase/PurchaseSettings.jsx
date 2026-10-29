@@ -27,6 +27,7 @@ import {
   ArrowUpRight,
   Copy,
   Check,
+  X,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -146,9 +147,11 @@ export default function PurchaseSettings() {
     code: '',
     description: '',
     head_of_department: '',
+    sub_modules: [],
     is_active: true,
   };
   const [deptFormData, setDeptFormData] = useState(initialDeptForm);
+  const [customSubModuleInput, setCustomSubModuleInput] = useState('');
   // ======================== HIERARCHY STATE ========================
   const [hierarchies, setHierarchies] = useState([]);
   const [hierLoading, setHierLoading] = useState(true);
@@ -697,9 +700,121 @@ export default function PurchaseSettings() {
     }
   };
 
+  // Available operations grouped by domain for Department Master
+  const AVAILABLE_OPERATIONAL_GROUPS = [
+    {
+      domain: 'Sales & Invoicing',
+      color: 'emerald',
+      items: [
+        'Sales Orders',
+        'Sales Invoices',
+        'Quotations',
+        'Customer Directory',
+        'Sales Returns',
+        'Repeat Orders',
+        'Upsell & Cross-sell',
+      ],
+    },
+    {
+      domain: 'Leads & Follow-up (CRM)',
+      color: 'blue',
+      items: [
+        'Customer Leads',
+        'Scheduled Follow-ups',
+        'Quotation Follow-up',
+        'Customer Complaints & Feedback',
+      ],
+    },
+    {
+      domain: 'Purchase & Procurement',
+      color: 'amber',
+      items: [
+        'Purchase Orders',
+        'Purchase Bills',
+        'Suppliers Directory',
+        'RFQ & Inquiries',
+        'Supplier Rejections',
+      ],
+    },
+    {
+      domain: 'Manufacturing & Job Work',
+      color: 'indigo',
+      items: [
+        'Job Orders (MPO)',
+        'Material Tracking',
+        'Job Bills',
+        'Job Work Contractors',
+      ],
+    },
+    {
+      domain: 'Inventory & Warehouse',
+      color: 'purple',
+      items: [
+        'Product Inventory',
+        'Raw Materials',
+        'Stock Ledgers',
+        'Warehouses',
+      ],
+    },
+    {
+      domain: 'Finance & Accounts',
+      color: 'rose',
+      items: [
+        'Bank & Cash Accounts',
+        'Inflow & Outflow',
+        'Expense Vouchers',
+        'Owner Capital & Drawings',
+      ],
+    },
+  ];
+
+  const handleToggleSubModule = (moduleName) => {
+    const current = deptFormData.sub_modules || [];
+    if (current.includes(moduleName)) {
+      setDeptFormData({
+        ...deptFormData,
+        sub_modules: current.filter((m) => m !== moduleName),
+      });
+    } else {
+      setDeptFormData({
+        ...deptFormData,
+        sub_modules: [...current, moduleName],
+      });
+    }
+  };
+
+  const handleApplyPresetTemplate = (presetItems) => {
+    setDeptFormData((prev) => ({
+      ...prev,
+      sub_modules: Array.from(new Set([...(prev.sub_modules || []), ...presetItems])),
+    }));
+  };
+
+  const handleAddCustomSubModule = (e) => {
+    if (e) e.preventDefault();
+    const trimmed = customSubModuleInput.trim();
+    if (!trimmed) return;
+    const current = deptFormData.sub_modules || [];
+    if (!current.includes(trimmed)) {
+      setDeptFormData({
+        ...deptFormData,
+        sub_modules: [...current, trimmed],
+      });
+    }
+    setCustomSubModuleInput('');
+  };
+
+  const handleRemoveSubModule = (moduleName) => {
+    setDeptFormData({
+      ...deptFormData,
+      sub_modules: (deptFormData.sub_modules || []).filter((m) => m !== moduleName),
+    });
+  };
+
   const handleOpenAddDepartment = () => {
     setEditingDept(null);
     setDeptFormData(initialDeptForm);
+    setCustomSubModuleInput('');
     setDeptError('');
     setIsDeptModalOpen(true);
   };
@@ -711,8 +826,10 @@ export default function PurchaseSettings() {
       code: dept.code || '',
       description: dept.description || '',
       head_of_department: dept.head_of_department || '',
+      sub_modules: Array.isArray(dept.sub_modules) ? [...dept.sub_modules] : [],
       is_active: dept.is_active !== undefined ? dept.is_active : true,
     });
+    setCustomSubModuleInput('');
     setDeptError('');
     setIsDeptModalOpen(true);
   };
@@ -1023,6 +1140,36 @@ export default function PurchaseSettings() {
           {d.member_count || 0} Staff
         </span>
       ),
+    },
+    {
+      header: 'Included Operations / Sub-Modules',
+      key: 'sub_modules',
+      render: (_, d) => {
+        const modules = Array.isArray(d.sub_modules) ? d.sub_modules : [];
+        if (modules.length === 0) {
+          return <span className="text-slate-400 italic text-[11px]">General Scope</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1 max-w-sm">
+            {modules.slice(0, 3).map((mod, idx) => (
+              <span
+                key={idx}
+                className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+              >
+                {mod}
+              </span>
+            ))}
+            {modules.length > 3 && (
+              <span
+                className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200"
+                title={modules.slice(3).join(', ')}
+              >
+                +{modules.length - 3} more
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'Department Head',
@@ -2923,7 +3070,7 @@ export default function PurchaseSettings() {
         isOpen={isDeptModalOpen}
         onClose={() => setIsDeptModalOpen(false)}
         title={editingDept ? `Edit Department: ${editingDept.name}` : 'Add New Organization Department'}
-        size="md"
+        size="lg"
       >
         <form onSubmit={handleSaveDepartment} className="space-y-4 text-xs font-sans text-slate-800">
           {deptError && (
@@ -2943,7 +3090,7 @@ export default function PurchaseSettings() {
                 required
                 value={deptFormData.name}
                 onChange={(e) => setDeptFormData({ ...deptFormData, name: e.target.value })}
-                placeholder="e.g. Quality Assurance & Inspection"
+                placeholder="e.g. Sales Department, Follow-up Team, Quality..."
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none"
               />
             </div>
@@ -2958,7 +3105,7 @@ export default function PurchaseSettings() {
                   required
                   value={deptFormData.code}
                   onChange={(e) => setDeptFormData({ ...deptFormData, code: e.target.value.toUpperCase() })}
-                  placeholder="e.g. QA"
+                  placeholder="e.g. SALES, CRM, PURCHASE"
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono uppercase focus:border-brand outline-none"
                 />
               </div>
@@ -2978,12 +3125,200 @@ export default function PurchaseSettings() {
             <div>
               <label className="block font-bold text-slate-700 mb-1">Description / Responsibilities</label>
               <textarea
-                rows={3}
+                rows={2}
                 value={deptFormData.description}
                 onChange={(e) => setDeptFormData({ ...deptFormData, description: e.target.value })}
                 placeholder="Briefly describe what this department oversees..."
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none resize-none"
               />
+            </div>
+
+            {/* SUB-MODULES & OPERATIONS UNDER THIS DEPARTMENT */}
+            <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-200 pb-2.5">
+                <div>
+                  <label className="block font-extrabold text-slate-900 text-xs">
+                    What falls under this Department? (Operations & Workflows)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Select the operations, workflows, and modules that this department handles.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold font-mono bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {deptFormData.sub_modules?.length || 0} Selected
+                  </span>
+                  {deptFormData.sub_modules?.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDeptFormData({ ...deptFormData, sub_modules: [] })}
+                      className="text-[11px] font-semibold text-rose-600 hover:underline px-1 cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Template Presets Bar */}
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Quick Department Templates:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Sales Department', code: p.code || 'SALES' }));
+                      handleApplyPresetTemplate(['Sales Orders', 'Sales Invoices', 'Quotations', 'Customer Directory', 'Sales Returns']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+                  >
+                    + Sales (Orders, Invoices, Quotations)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Follow-up & CRM Department', code: p.code || 'CRM' }));
+                      handleApplyPresetTemplate(['Customer Leads', 'Scheduled Follow-ups', 'Quotation Follow-up', 'Customer Complaints & Feedback']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
+                  >
+                    + Follow-up / CRM (Leads, Follow-ups)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Procurement Department', code: p.code || 'PURCHASE' }));
+                      handleApplyPresetTemplate(['Purchase Orders', 'Purchase Bills', 'Suppliers Directory', 'RFQ & Inquiries', 'Supplier Rejections']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+                  >
+                    + Purchase (POs, Bills, Suppliers)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Job Work Department', code: p.code || 'JOBWORK' }));
+                      handleApplyPresetTemplate(['Job Orders (MPO)', 'Material Tracking', 'Job Bills', 'Job Work Contractors']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 hover:bg-indigo-100 transition cursor-pointer"
+                  >
+                    + Manufacturing / Job Work (MPO, Contractors)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Inventory Department', code: p.code || 'INVENTORY' }));
+                      handleApplyPresetTemplate(['Product Inventory', 'Raw Materials', 'Stock Ledgers', 'Warehouses']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 transition cursor-pointer"
+                  >
+                    + Inventory & Warehouse
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Finance & Accounts', code: p.code || 'FINANCE' }));
+                      handleApplyPresetTemplate(['Bank & Cash Accounts', 'Inflow & Outflow', 'Expense Vouchers', 'Owner Capital & Drawings']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                  >
+                    + Finance & Accounts
+                  </button>
+                </div>
+              </div>
+
+              {/* Grouped Clickable Module Pills */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {AVAILABLE_OPERATIONAL_GROUPS.map((grp) => (
+                  <div key={grp.domain} className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2">
+                      {grp.domain}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {grp.items.map((item) => {
+                        const isSelected = deptFormData.sub_modules?.includes(item);
+                        return (
+                          <button
+                            type="button"
+                            key={item}
+                            onClick={() => handleToggleSubModule(item)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition flex items-center gap-1.5 border cursor-pointer ${
+                              isSelected
+                                ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-2xs'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {isSelected ? (
+                              <Check className="w-3 h-3 text-white" />
+                            ) : (
+                              <Plus className="w-3 h-3 text-slate-400" />
+                            )}
+                            <span>{item}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom Operation Tag Adder */}
+              <div className="pt-1">
+                <span className="text-[10px] font-bold text-slate-600 block mb-1">
+                  Add Custom Operation or Task:
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customSubModuleInput}
+                    onChange={(e) => setCustomSubModuleInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomSubModule();
+                      }
+                    }}
+                    placeholder="e.g. Telecalling & Leads, Fabric Inspection, Logistics Dispatch..."
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:border-brand outline-none bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomSubModule}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-bold hover:bg-slate-700 transition cursor-pointer"
+                  >
+                    + Add Task
+                  </button>
+                </div>
+              </div>
+
+              {/* Selected List Preview Pills */}
+              {deptFormData.sub_modules?.length > 0 && (
+                <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block mb-2">
+                    Assigned Operations List ({deptFormData.sub_modules.length}):
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {deptFormData.sub_modules.map((mod) => (
+                      <span
+                        key={mod}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-emerald-950 border border-emerald-300 shadow-2xs"
+                      >
+                        <span>{mod}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSubModule(mod)}
+                          className="text-slate-400 hover:text-rose-600 transition ml-0.5 cursor-pointer"
+                          title="Remove"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 pt-1">

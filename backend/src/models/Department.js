@@ -25,6 +25,10 @@ const departmentSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    sub_modules: {
+      type: [String],
+      default: [],
+    },
     is_active: {
       type: Boolean,
       default: true,
