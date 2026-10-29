@@ -91,7 +91,7 @@ export default function App() {
           <Route path="summary" element={<ModuleShortcutsSummary />} />
           <Route path="cockpit" element={<ModuleShortcutsSummary />} />
           
-          {/* Products Catalog & Stock Ledger */}
+          {/* Product Inventory & Stock Ledger */}
           <Route path="products" element={<ProductsList />} />
           <Route path="products/:id/ledger" element={<ProductStockLedger />} />
           <Route path="products/ledger/:id" element={<ProductStockLedger />} />

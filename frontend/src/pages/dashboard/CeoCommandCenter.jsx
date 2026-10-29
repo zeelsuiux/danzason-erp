@@ -478,7 +478,7 @@ export default function CeoCommandCenter() {
               onClick={() => navigate('/products')}
               className="text-xs font-bold text-brand hover:underline inline-flex items-center gap-1"
             >
-              <span>Catalog</span>
+              <span>Product Inventory</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>

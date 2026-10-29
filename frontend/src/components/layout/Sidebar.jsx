@@ -81,7 +81,7 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
       title: 'Product & Inventory',
       icon: Layers,
       items: [
-        { name: 'Products Catalog', path: '/products', icon: Boxes },
+        { name: 'Product Inventory', path: '/products', icon: Boxes },
         { name: 'Raw Materials', path: '/raw-materials', icon: Layers },
         { name: 'Stock Ledger', path: '/raw-materials/stock-ledger', icon: FileSpreadsheet },
       ],
