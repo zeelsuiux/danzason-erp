@@ -10,6 +10,7 @@ const GoodsReceiptNote = require('../models/GoodsReceiptNote');
 const PurchaseInvoice = require('../models/PurchaseInvoice');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const BankAccount = require('../models/BankAccount');
+const PricingRule = require('../models/PricingRule');
 const { adjustBalance } = require('./bankAccountController');
 const { trackGoalProgressEvent } = require('../utils/targetGoalTracker');
 
@@ -2451,5 +2452,128 @@ exports.getProducts = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ======================== CHANNEL QUANTITY PRICING RULES ========================
+exports.getPricingRules = async (req, res) => {
+  try {
+    let rule = await PricingRule.findOne({ is_active: true });
+    if (!rule) {
+      rule = await PricingRule.create({
+        name: 'Channel & Quantity Tiered Pricing Policy',
+        pricing_method: 'markup',
+        ranges: [
+          { min_qty: 1, max_qty: 100, b2b_percent: 5, b2c_percent: 10, d2c_percent: 15, retail_percent: 8, label: 'Small Batch (1 - 100 Qty)' },
+          { min_qty: 101, max_qty: 500, b2b_percent: 4, b2c_percent: 9, d2c_percent: 13, retail_percent: 7, label: 'Medium Volume (101 - 500 Qty)' },
+          { min_qty: 501, max_qty: 1000, b2b_percent: 3.5, b2c_percent: 8, d2c_percent: 11, retail_percent: 6, label: 'Wholesale Bulk (501 - 1,000 Qty)' },
+          { min_qty: 1001, max_qty: 999999, b2b_percent: 2.5, b2c_percent: 7, d2c_percent: 10, retail_percent: 5, label: 'Mega Enterprise (1,000+ Qty)' },
+        ],
+        is_active: true,
+      });
+    }
+    res.json({
+      success: true,
+      data: rule,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.savePricingRules = async (req, res) => {
+  try {
+    const { name, pricing_method, ranges, notes, is_active } = req.body;
+    let rule = await PricingRule.findOne({});
+    if (!rule) {
+      rule = new PricingRule();
+    }
+    if (name) rule.name = name.trim();
+    if (pricing_method) rule.pricing_method = pricing_method;
+    if (notes !== undefined) rule.notes = notes.trim();
+    if (is_active !== undefined) rule.is_active = is_active;
+    if (Array.isArray(ranges)) {
+      rule.ranges = ranges.map((r) => ({
+        min_qty: Number(r.min_qty) || 1,
+        max_qty: Number(r.max_qty) || 999999,
+        b2b_percent: Number(r.b2b_percent) || 0,
+        b2c_percent: Number(r.b2c_percent) || 0,
+        d2c_percent: Number(r.d2c_percent) || 0,
+        retail_percent: Number(r.retail_percent) || 0,
+        label: (r.label || '').trim(),
+      })).sort((a, b) => a.min_qty - b.min_qty);
+    }
+    await rule.save();
+    res.json({
+      success: true,
+      message: 'Channel quantity pricing rules saved successfully',
+      data: rule,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.calculateChannelPrice = async (req, res) => {
+  try {
+    const { purchase_rate = 0, quantity = 1, channel = 'B2B' } = req.body;
+    const pRate = Number(purchase_rate) || 0;
+    const qty = Math.max(1, Number(quantity) || 1);
+    const ch = (channel || 'B2B').toUpperCase();
+
+    let rule = await PricingRule.findOne({ is_active: true });
+    if (!rule || !rule.ranges || rule.ranges.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          purchase_rate: pRate,
+          quantity: qty,
+          channel: ch,
+          markup_percent: 0,
+          calculated_rate: pRate,
+          tier_label: 'Default Rate (No Rule)',
+        },
+      });
+    }
+
+    // Match range
+    let matchedRange = rule.ranges.find((r) => qty >= r.min_qty && qty <= r.max_qty);
+    if (!matchedRange) {
+      matchedRange = rule.ranges[rule.ranges.length - 1];
+    }
+
+    let pct = 0;
+    if (ch.includes('B2B') || ch.includes('WHOLESALE') || ch.includes('DISTRIBUTOR')) {
+      pct = matchedRange.b2b_percent;
+    } else if (ch.includes('D2C') || ch.includes('ONLINE')) {
+      pct = matchedRange.d2c_percent;
+    } else if (ch.includes('RETAIL') || ch.includes('POS')) {
+      pct = matchedRange.retail_percent;
+    } else {
+      pct = matchedRange.b2c_percent;
+    }
+
+    let calculatedRate = pRate;
+    if (rule.pricing_method === 'margin') {
+      calculatedRate = pct < 100 ? pRate / (1 - pct / 100) : pRate;
+    } else {
+      calculatedRate = pRate * (1 + pct / 100);
+    }
+    calculatedRate = Math.round(calculatedRate * 100) / 100;
+
+    res.json({
+      success: true,
+      data: {
+        purchase_rate: pRate,
+        quantity: qty,
+        channel: ch,
+        markup_percent: pct,
+        calculated_rate: calculatedRate,
+        tier_label: matchedRange.label || `${matchedRange.min_qty} - ${matchedRange.max_qty} Qty`,
+        pricing_method: rule.pricing_method,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

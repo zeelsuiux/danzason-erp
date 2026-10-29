@@ -68,4 +68,9 @@ router.delete('/warehouses/:id', purchaseCtrl.deleteWarehouse);
 router.put('/warehouses/:id/set-default', purchaseCtrl.setDefaultWarehouse);
 router.put('/warehouses/:id/toggle-status', purchaseCtrl.toggleWarehouseStatus);
 
+// Channel & Quantity-Wise Pricing Rules (Settings)
+router.get('/pricing-rules', purchaseCtrl.getPricingRules);
+router.put('/pricing-rules', purchaseCtrl.savePricingRules);
+router.post('/calculate-price', purchaseCtrl.calculateChannelPrice);
+
 module.exports = router;

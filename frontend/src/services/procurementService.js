@@ -86,6 +86,10 @@ export const St = {
   deleteWarehouse: (id) => api.delete(`/purchase/warehouses/${id}`),
   setDefaultWarehouse: (id) => api.put(`/purchase/warehouses/${id}/set-default`),
   toggleWarehouseStatus: (id) => api.put(`/purchase/warehouses/${id}/toggle-status`),
+  // Channel Quantity Pricing Rules
+  getPricingRules: () => api.get('/purchase/pricing-rules'),
+  savePricingRules: (data) => api.put('/purchase/pricing-rules', data),
+  calculateChannelPrice: (data) => api.post('/purchase/calculate-price', data),
 };
 
 export const productApi = {

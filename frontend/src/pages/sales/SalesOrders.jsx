@@ -28,6 +28,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import ProductSearchDropdown from '../../components/common/ProductSearchDropdown';
 import { salesApi, St, Dt } from '../../services/procurementService';
 import upsellService from '../../services/upsellService';
+import { CHANNEL_CONFIG, CHANNELS, detectCustomerChannel, calculateDynamicUnitPrice } from '../../utils/pricingRules';
 
 export default function SalesOrders() {
   const navigate = useNavigate();
@@ -88,6 +89,7 @@ export default function SalesOrders() {
   // Smart Upsell & Cross-sell Recommendations
   const [orderRecommendations, setOrderRecommendations] = useState([]);
   const [appliedRecIds, setAppliedRecIds] = useState([]);
+  const [pricingRules, setPricingRules] = useState(null);
 
   useEffect(() => {
     loadOrders(pagination.page);
@@ -96,10 +98,11 @@ export default function SalesOrders() {
 
   const loadDropdownData = async () => {
     try {
-      const [custRes, whRes, prodRes] = await Promise.all([
+      const [custRes, whRes, prodRes, pricingRes] = await Promise.all([
         salesApi.getCustomers({ limit: 100 }).catch(() => ({ data: [] })),
         St.getWarehouses().catch(() => ({ data: [] })),
         Dt.getProducts({ limit: 200, view: 'color' }).catch(() => ({ data: [] })),
+        St.getPricingRules().catch(() => ({ data: null })),
       ]);
       setCustomers(Array.isArray(custRes.data) ? custRes.data : []);
       const whList = whRes?.data?.warehouses || whRes?.data || [];
@@ -110,6 +113,9 @@ export default function SalesOrders() {
         prodList = Array.isArray(fallback.data) ? fallback.data : [];
       }
       setProducts(prodList);
+      if (pricingRes?.data) {
+        setPricingRules(pricingRes.data);
+      }
     } catch (err) {
       console.error('Failed to load dropdown dependencies:', err);
     }
@@ -170,7 +176,7 @@ export default function SalesOrders() {
     }));
   };
 
-  // Pricing tier switch: automatically updates product unit prices
+  // Pricing channel switch: automatically updates product unit prices
   const handlePricingTierChange = (newTier) => {
     setPricingTier(newTier);
     setCreateForm((prev) => {
@@ -181,9 +187,13 @@ export default function SalesOrders() {
         );
         if (!prod) return it;
 
-        const b2b = Number(prod.b2b_price ?? prod.selling_rate ?? prod.price ?? 0);
-        const b2c = Number(prod.b2c_price ?? prod.mrp ?? (b2b > 0 ? Math.round(b2b * 1.35) : 0));
-        const newRate = newTier === 'B2C' ? b2c : b2b;
+        const dyn = calculateDynamicUnitPrice(
+          prod,
+          it.quantity || 1,
+          newTier,
+          pricingRules
+        );
+        const newRate = dyn.unitPrice;
 
         // Recalculate discount amounts if in percentage mode
         const gross = (Number(it.quantity) || 1) * newRate;
@@ -196,6 +206,7 @@ export default function SalesOrders() {
           ...it,
           unit_price: newRate,
           discount_amount: discAmt,
+          pricing_info: dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null,
         };
       });
       return { ...prev, items: updatedItems };
@@ -207,10 +218,7 @@ export default function SalesOrders() {
     const cust = customers.find((c) => (c._id || c.id) === custId);
     let detectedTier = 'B2B';
     if (cust) {
-      const type = String(cust.customer_type || '').toUpperCase();
-      if (['B2C', 'RETAIL', 'D2C'].includes(type)) {
-        detectedTier = 'B2C';
-      }
+      detectedTier = detectCustomerChannel(cust);
     }
     setCreateForm((prev) => ({ ...prev, customer_id: custId }));
     handlePricingTierChange(detectedTier);
@@ -224,9 +232,14 @@ export default function SalesOrders() {
 
     const updated = [...createForm.items];
     if (productObj) {
-      const b2b = Number(productObj.b2b_price ?? productObj.selling_rate ?? productObj.price ?? 0);
-      const b2c = Number(productObj.b2c_price ?? productObj.mrp ?? (b2b > 0 ? Math.round(b2b * 1.35) : 0));
-      const rate = pricingTier === 'B2C' ? b2c : b2b;
+      const qty = Number(updated[index].quantity) || 1;
+      const dyn = calculateDynamicUnitPrice(
+        productObj,
+        qty,
+        pricingTier,
+        pricingRules
+      );
+      const rate = dyn.unitPrice;
 
       updated[index] = {
         ...updated[index],
@@ -236,6 +249,7 @@ export default function SalesOrders() {
         hsn_code: productObj.hsn_code || '6109',
         uom: productObj.uom || 'PCS',
         unit_price: rate,
+        pricing_info: dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null,
         discount_type: updated[index].discount_type || 'percentage',
         discount_percentage: updated[index].discount_percentage || 0,
         discount_amount: updated[index].discount_amount || 0,
@@ -255,6 +269,7 @@ export default function SalesOrders() {
         sku: '',
         hsn_code: '6109',
         unit_price: 0,
+        pricing_info: null,
         discount_type: 'percentage',
         discount_percentage: 0,
         discount_amount: 0,
@@ -269,9 +284,23 @@ export default function SalesOrders() {
     const updated = [...createForm.items];
     updated[index][field] = value;
 
-    // If quantity changes, re-sync discount amount
+    // If quantity changes, recalculate unit price using quantity slab rules
     if (field === 'quantity') {
       const qty = Math.max(1, parseInt(value, 10) || 1);
+      const it = updated[index];
+      if (it.product_id) {
+        const prod = products.find(
+          (p) => (p._id || p.id || p.product_id) === it.product_id
+        );
+        if (prod) {
+          const dyn = calculateDynamicUnitPrice(prod, qty, pricingTier, pricingRules);
+          if (dyn.isDynamic) {
+            it.unit_price = dyn.unitPrice;
+            it.pricing_info = `+${dyn.percent}% (${dyn.slabLabel})`;
+          }
+        }
+      }
+
       const gross = qty * (Number(updated[index].unit_price) || 0);
       if (updated[index].discount_type === 'percentage') {
         updated[index].discount_amount = Number(
@@ -698,35 +727,32 @@ export default function SalesOrders() {
               />
             </div>
 
-            {/* Pricing Tier Selector (B2B vs B2C) */}
+            {/* Pricing Channel & Tier Selector (B2B, B2C, D2C, Retail) */}
             <div>
               <label className="block font-bold text-slate-700 mb-1.5 text-sm flex items-center justify-between">
-                <span>Pricing Tier</span>
-                <span className="text-[10px] text-slate-400 font-normal">Auto from customer</span>
+                <span>Pricing Channel</span>
+                <span className="text-[10px] text-slate-400 font-normal">Auto-detected from customer</span>
               </label>
-              <div className="flex items-center rounded-xl p-1 bg-slate-100 border border-slate-200 gap-1 h-[42px]">
-                <button
-                  type="button"
-                  onClick={() => handlePricingTierChange('B2B')}
-                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
-                    pricingTier === 'B2B'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span>B2B Wholesale</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePricingTierChange('B2C')}
-                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
-                    pricingTier === 'B2C'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span>B2C Retail</span>
-                </button>
+              <div className="grid grid-cols-4 rounded-xl p-1 bg-slate-100 border border-slate-200 gap-1 min-h-[42px]">
+                {CHANNELS.map((ch) => {
+                  const cfg = CHANNEL_CONFIG[ch];
+                  const active = pricingTier === ch;
+                  return (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => handlePricingTierChange(ch)}
+                      className={`py-1 px-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-0.5 text-center ${
+                        active
+                          ? cfg.btnClass
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                      }`}
+                      title={cfg.label}
+                    >
+                      <span>{ch}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -894,7 +920,11 @@ export default function SalesOrders() {
                             <Lock className="w-2.5 h-2.5 text-slate-400 absolute left-1.5 top-2.5 pointer-events-none" />
                           </div>
                           <span className="text-[10px] text-slate-500 font-mono block text-right mt-0.5">
-                            {pricingTier} Rate
+                            {it.pricing_info ? (
+                              <span className="text-emerald-700 font-semibold">{it.pricing_info}</span>
+                            ) : (
+                              `${pricingTier} Rate`
+                            )}
                           </span>
                         </td>
 
