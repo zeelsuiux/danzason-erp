@@ -210,3 +210,50 @@ export const calculateDynamicUnitPrice = (product, quantity, channel = 'B2B', pr
     channel: ch,
   };
 };
+
+/**
+ * Accurately matches an ERP line item with its product master entry or color variant
+ */
+export const matchProductVariant = (productsList, item) => {
+  if (!Array.isArray(productsList) || !item) return null;
+  if (item.product_obj && typeof item.product_obj === 'object') {
+    return item.product_obj;
+  }
+
+  const targetId = String(item.product_id?._id || item.product_id || '').trim();
+  const targetSku = String(item.sku || '').toLowerCase().trim();
+  const targetColor = String(item.color_variant?.color_name || item.color || '').toLowerCase().trim();
+  const targetAltId = String(item._variant_id || '').trim();
+
+  // 1. Exact match on variant _id
+  if (targetAltId) {
+    const match = productsList.find((p) => String(p._id) === targetAltId);
+    if (match) return match;
+  }
+
+  // 2. Match on SKU
+  if (targetSku) {
+    const match = productsList.find((p) => String(p.sku || p.sku_id || '').toLowerCase().trim() === targetSku);
+    if (match) return match;
+  }
+
+  // 3. Match on product_id AND color
+  if (targetId && targetColor) {
+    const match = productsList.find((p) => {
+      const pProdId = String(p.product_id || p._id || '');
+      const pColor = String(p.color || '').toLowerCase().trim();
+      return (pProdId === targetId || String(p._id) === targetId) && pColor === targetColor;
+    });
+    if (match) return match;
+  }
+
+  // 4. Match on product_id or _id
+  if (targetId) {
+    const match = productsList.find((p) => {
+      return String(p.product_id) === targetId || String(p._id) === targetId || String(p.id) === targetId;
+    });
+    if (match) return match;
+  }
+
+  return null;
+};

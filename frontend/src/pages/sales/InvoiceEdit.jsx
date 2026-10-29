@@ -21,7 +21,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import StatusBadge from '../../components/common/StatusBadge';
 import ProductSearchDropdown from '../../components/common/ProductSearchDropdown';
 import { salesApi, Dt, St } from '../../services/procurementService';
-import { calculateDynamicUnitPrice, detectCustomerChannel } from '../../utils/pricingRules';
+import { calculateDynamicUnitPrice, detectCustomerChannel, matchProductVariant } from '../../utils/pricingRules';
 
 export default function InvoiceEdit() {
   const { id } = useParams();
@@ -174,9 +174,7 @@ export default function InvoiceEdit() {
     setForm((prev) => {
       const updated = prev.items.map((it) => {
         if (!it.product_id) return it;
-        const prod = products.find(
-          (p) => (p._id || p.id || p.product_id) === it.product_id
-        );
+        const prod = it.product_obj || matchProductVariant(products, it);
         if (!prod) return it;
 
         const dyn = calculateDynamicUnitPrice(
@@ -236,15 +234,14 @@ export default function InvoiceEdit() {
 
     if (field === 'quantity') {
       const qty = Math.max(1, parseInt(value, 10) || 1);
-      const prod = products.find(
-        (p) => (p._id || p.id || p.product_id) === updated[index].product_id
-      );
+      const it = updated[index];
+      const prod = it.product_obj || matchProductVariant(products, it);
       if (prod) {
         const dyn = calculateDynamicUnitPrice(prod, qty, pricingTier, pricingRules);
-        updated[index].unit_price = dyn.unitPrice;
-        updated[index].pricing_info = dyn.pricingInfo;
+        it.unit_price = dyn.unitPrice;
+        it.pricing_info = dyn.pricingInfo;
       }
-      const gross = qty * (Number(updated[index].unit_price) || 0);
+      const gross = qty * (Number(it.unit_price) || 0);
       if (updated[index].discount_type === 'percentage') {
         updated[index].discount_amount = Number(
           ((gross * (Number(updated[index].discount_percentage) || 0)) / 100).toFixed(2)
@@ -302,11 +299,17 @@ export default function InvoiceEdit() {
       updated[index] = {
         ...updated[index],
         product_id: productObj.product_id || productObj._id || productObj.id,
+        _variant_id: productObj._id,
+        product_obj: productObj,
         product_name: productObj.product_name || productObj.title || '',
+        sku: productObj.sku || productObj.sku_id || productObj.product_code || '',
         hsn_code: productObj.hsn_code || '6109',
         uom: productObj.uom || 'PCS',
         unit_price: rate,
         pricing_info: dyn.pricingInfo,
+        purchase_rate: Number(productObj.purchase_rate || productObj.cost_rate || 0),
+        cost_rate: Number(productObj.cost_rate || productObj.purchase_rate || 0),
+        purchase_batches: productObj.purchase_batches || [],
         discount_type: updated[index].discount_type || 'percentage',
         discount_percentage: updated[index].discount_percentage || 0,
         discount_amount: updated[index].discount_amount || 0,
@@ -666,8 +669,10 @@ export default function InvoiceEdit() {
                           products={products}
                           pricingTier={pricingTier}
                           selectedProduct={
-                            it.product_id
-                              ? products.find((p) => (p._id || p.id || p.product_id) === it.product_id) || {
+                            it.product_obj ||
+                            matchProductVariant(products, it) ||
+                            (it.product_id
+                              ? {
                                   product_name: it.product_name,
                                   sku: it.sku,
                                   uom: it.uom,
@@ -676,7 +681,7 @@ export default function InvoiceEdit() {
                                   selling_rate: it.unit_price,
                                   color: it.color_variant?.color_name,
                                 }
-                              : null
+                              : null)
                           }
                           onSelectProduct={(prod) => handleSelectProduct(idx, prod)}
                           onClear={() => handleSelectProduct(idx, null)}

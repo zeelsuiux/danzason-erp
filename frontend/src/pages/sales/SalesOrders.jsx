@@ -28,7 +28,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import ProductSearchDropdown from '../../components/common/ProductSearchDropdown';
 import { salesApi, St, Dt } from '../../services/procurementService';
 import upsellService from '../../services/upsellService';
-import { CHANNEL_CONFIG, CHANNELS, detectCustomerChannel, calculateDynamicUnitPrice } from '../../utils/pricingRules';
+import { CHANNEL_CONFIG, CHANNELS, detectCustomerChannel, calculateDynamicUnitPrice, matchProductVariant } from '../../utils/pricingRules';
 
 export default function SalesOrders() {
   const navigate = useNavigate();
@@ -182,9 +182,7 @@ export default function SalesOrders() {
     setCreateForm((prev) => {
       const updatedItems = prev.items.map((it) => {
         if (!it.product_id) return it;
-        const prod = products.find(
-          (p) => (p._id || p.id || p.product_id) === it.product_id
-        );
+        const prod = it.product_obj || matchProductVariant(products, it);
         if (!prod) return it;
 
         const dyn = calculateDynamicUnitPrice(
@@ -244,12 +242,17 @@ export default function SalesOrders() {
       updated[index] = {
         ...updated[index],
         product_id: productObj.product_id || productObj._id || productObj.id,
+        _variant_id: productObj._id,
+        product_obj: productObj,
         product_name: productObj.product_name || productObj.title || '',
         sku: productObj.sku || productObj.sku_id || productObj.product_code || '',
         hsn_code: productObj.hsn_code || '6109',
         uom: productObj.uom || 'PCS',
         unit_price: rate,
         pricing_info: dyn.pricingInfo || (dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null),
+        purchase_rate: Number(productObj.purchase_rate || productObj.cost_rate || 0),
+        cost_rate: Number(productObj.cost_rate || productObj.purchase_rate || 0),
+        purchase_batches: productObj.purchase_batches || [],
         discount_type: updated[index].discount_type || 'percentage',
         discount_percentage: updated[index].discount_percentage || 0,
         discount_amount: updated[index].discount_amount || 0,
@@ -288,17 +291,11 @@ export default function SalesOrders() {
     if (field === 'quantity') {
       const qty = Math.max(1, parseInt(value, 10) || 1);
       const it = updated[index];
-      if (it.product_id) {
-        const prod = products.find(
-          (p) => (p._id || p.id || p.product_id) === it.product_id
-        );
-        if (prod) {
-          const dyn = calculateDynamicUnitPrice(prod, qty, pricingTier, pricingRules);
-          if (dyn.isDynamic || dyn.pricingInfo) {
-            it.unit_price = dyn.unitPrice;
-            it.pricing_info = dyn.pricingInfo || `+${dyn.percent}% (${dyn.slabLabel})`;
-          }
-        }
+      const prod = it.product_obj || matchProductVariant(products, it);
+      if (prod) {
+        const dyn = calculateDynamicUnitPrice(prod, qty, pricingTier, pricingRules);
+        it.unit_price = dyn.unitPrice;
+        it.pricing_info = dyn.pricingInfo || `+${dyn.percent}% (${dyn.slabLabel})`;
       }
 
       const gross = qty * (Number(updated[index].unit_price) || 0);
@@ -812,7 +809,8 @@ export default function SalesOrders() {
                     const lineTotal = Math.round(taxable + gstAmount);
 
                     const currentProd =
-                      products.find((p) => (p._id || p.id || p.product_id) === it.product_id) ||
+                      it.product_obj ||
+                      matchProductVariant(products, it) ||
                       (it.product_id
                         ? {
                             product_name: it.product_name,
