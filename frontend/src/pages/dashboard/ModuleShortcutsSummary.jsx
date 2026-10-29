@@ -39,6 +39,10 @@ import {
   Calendar,
   Eye,
   Plus,
+  Filter,
+  RotateCcw,
+  SlidersHorizontal,
+  Tag,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import dashboardService from '../../services/dashboardService';
@@ -58,6 +62,14 @@ export default function ModuleShortcutsSummary() {
   // Live Records for the tapped module
   const [moduleRecords, setModuleRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
+
+  // Sales-specific filters (B2B, B2C, D2C, Retail, Date, Warehouse)
+  const [salesChannelFilter, setSalesChannelFilter] = useState('all'); // 'all' | 'b2b' | 'b2c' | 'd2c' | 'retail'
+  const [salesWarehouseFilter, setSalesWarehouseFilter] = useState('all'); // 'all' | warehouse_id
+  const [salesDatePreset, setSalesDatePreset] = useState('all'); // 'all' | 'today' | 'this_week' | 'this_month' | 'custom'
+  const [salesStartDate, setSalesStartDate] = useState('');
+  const [salesEndDate, setSalesEndDate] = useState('');
+  const [warehousesList, setWarehousesList] = useState([]);
 
   const iconMap = {
     Receipt: Receipt,
@@ -90,6 +102,22 @@ export default function ModuleShortcutsSummary() {
       if (res?.summaryOverview) {
         setSummaryOverview(res.summaryOverview);
       }
+
+      // Load warehouses list for sales warehouse-wise filtering
+      try {
+        const wRes = await fetch('/api/v1/purchase/warehouses', {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': '2ee062fd20e15a2da9c359fac339da2c24396001c9d748df0ef4c6a1d6a776a6',
+            'Authorization': 'Bearer 2ee062fd20e15a2da9c359fac339da2c24396001c9d748df0ef4c6a1d6a776a6',
+          },
+        });
+        const wJson = await wRes.json();
+        const whs = wJson.data?.warehouses || wJson.warehouses || (Array.isArray(wJson.data) ? wJson.data : []);
+        setWarehousesList(whs);
+      } catch (e) {
+        console.error('Failed to load warehouses list:', e);
+      }
     } catch (err) {
       console.error('Failed to load shortcuts summary:', err);
     } finally {
@@ -115,7 +143,7 @@ export default function ModuleShortcutsSummary() {
         let endpoint = '';
         switch (selectedModuleId) {
           case 'sales':
-            endpoint = '/api/v1/sales/invoices';
+            endpoint = '/api/v1/sales/invoices?limit=100';
             break;
           case 'product_management':
             endpoint = '/api/v1/products';
@@ -214,6 +242,186 @@ export default function ModuleShortcutsSummary() {
     });
   }, [shortcuts, searchTerm]);
 
+  // Helper to detect Channel/Type of each Sales Invoice
+  const getInvoiceChannel = (inv) => {
+    const rawType = (
+      inv.customer_id?.customer_type ||
+      inv.customer_type ||
+      inv.customer_id?.category ||
+      ''
+    ).toLowerCase();
+    const channel = (inv.channel || inv.sales_type || '').toLowerCase();
+
+    if (rawType.includes('d2c') || channel.includes('d2c') || channel.includes('online')) {
+      return 'D2C';
+    }
+    if (rawType.includes('retail') || channel.includes('retail') || channel.includes('pos')) {
+      return 'Retail';
+    }
+    if (rawType.includes('b2c') || rawType.includes('direct_buyer') || rawType.includes('consumer')) {
+      return 'B2C';
+    }
+    return 'B2B';
+  };
+
+  // Channel badge styling
+  const getChannelBadgeStyle = (channel) => {
+    switch (channel) {
+      case 'B2B':
+        return 'bg-purple-50 text-purple-700 border border-purple-200';
+      case 'B2C':
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'D2C':
+        return 'bg-amber-50 text-amber-700 border border-amber-200';
+      case 'Retail':
+        return 'bg-blue-50 text-blue-700 border border-blue-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border border-slate-200';
+    }
+  };
+
+  // Helper to get warehouse name for an invoice
+  const getInvoiceWarehouseName = (inv) => {
+    if (inv.warehouse_id?.warehouse_name) return inv.warehouse_id.warehouse_name;
+    const whId = inv.warehouse_id?._id || inv.warehouse_id || inv.so_id?.warehouse_id?._id || inv.so_id?.warehouse_id;
+    if (whId && warehousesList.length > 0) {
+      const found = warehousesList.find((w) => String(w._id) === String(whId) || String(w.id) === String(whId));
+      if (found) return found.warehouse_name;
+    }
+    return 'Central Distribution Hub Mumbai';
+  };
+
+  // Sales Channel Counts across all loaded records
+  const salesChannelCounts = useMemo(() => {
+    if (selectedModuleId !== 'sales') return { all: 0, b2b: 0, b2c: 0, d2c: 0, retail: 0 };
+    let b2b = 0;
+    let b2c = 0;
+    let d2c = 0;
+    let retail = 0;
+    moduleRecords.forEach((inv) => {
+      const ch = getInvoiceChannel(inv);
+      if (ch === 'B2B') b2b++;
+      else if (ch === 'B2C') b2c++;
+      else if (ch === 'D2C') d2c++;
+      else if (ch === 'Retail') retail++;
+    });
+    return {
+      all: moduleRecords.length,
+      b2b,
+      b2c,
+      d2c,
+      retail,
+    };
+  }, [moduleRecords, selectedModuleId]);
+
+  // Filtered Sales Invoices based on Channel (B2B, B2C, D2C, Retail), Warehouse, and Date
+  const filteredSalesInvoices = useMemo(() => {
+    if (selectedModuleId !== 'sales') return moduleRecords;
+
+    return moduleRecords.filter((inv) => {
+      // 1. Channel Filter
+      if (salesChannelFilter !== 'all') {
+        const invChannel = getInvoiceChannel(inv).toLowerCase();
+        if (salesChannelFilter === 'retail') {
+          if (invChannel !== 'retail' && invChannel !== 'b2c' && invChannel !== 'd2c') return false;
+        } else if (invChannel !== salesChannelFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 2. Warehouse Filter
+      if (salesWarehouseFilter !== 'all') {
+        const whId = inv.warehouse_id?._id || inv.warehouse_id || inv.so_id?.warehouse_id?._id || inv.so_id?.warehouse_id || '';
+        // Also check by warehouse name match if ID is missing
+        const targetWh = warehousesList.find((w) => String(w._id) === String(salesWarehouseFilter) || String(w.id) === String(salesWarehouseFilter));
+        const invWhName = getInvoiceWarehouseName(inv);
+        const matchesId = String(whId) === String(salesWarehouseFilter);
+        const matchesName = targetWh && invWhName === targetWh.warehouse_name;
+        if (!matchesId && !matchesName) {
+          return false;
+        }
+      }
+
+      // 3. Date Filter
+      const invDateStr = inv.invoice_date || inv.createdAt;
+      if (invDateStr) {
+        const invDate = new Date(invDateStr);
+        const today = new Date();
+
+        if (salesDatePreset === 'today') {
+          if (invDate.toDateString() !== today.toDateString()) return false;
+        } else if (salesDatePreset === 'this_week') {
+          const startOfWeek = new Date(today);
+          startOfWeek.setDate(today.getDate() - today.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+          if (invDate < startOfWeek) return false;
+        } else if (salesDatePreset === 'this_month') {
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          if (invDate < startOfMonth) return false;
+        } else if (salesDatePreset === 'custom' || salesStartDate || salesEndDate) {
+          if (salesStartDate) {
+            const sDate = new Date(salesStartDate);
+            sDate.setHours(0, 0, 0, 0);
+            if (invDate < sDate) return false;
+          }
+          if (salesEndDate) {
+            const eDate = new Date(salesEndDate);
+            eDate.setHours(23, 59, 59, 999);
+            if (invDate > eDate) return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [
+    moduleRecords,
+    selectedModuleId,
+    salesChannelFilter,
+    salesWarehouseFilter,
+    salesDatePreset,
+    salesStartDate,
+    salesEndDate,
+    warehousesList,
+  ]);
+
+  // Recalculated dynamic KPI metrics for Sales based on active filters
+  const salesFilteredSummary = useMemo(() => {
+    if (selectedModuleId !== 'sales') return null;
+    let turnover = 0;
+    let paid = 0;
+    let due = 0;
+    filteredSalesInvoices.forEach((inv) => {
+      const grand = Number(inv.grand_total || 0);
+      const p = Number(inv.paid_amount || 0);
+      const d = Number(inv.balance_amount !== undefined ? inv.balance_amount : grand - p);
+      turnover += grand;
+      paid += p;
+      due += d;
+    });
+    return {
+      turnover: '₹' + turnover.toLocaleString('en-IN'),
+      invoicesCount: `${filteredSalesInvoices.length} Invoices`,
+      pendingReceivables: '₹' + due.toLocaleString('en-IN'),
+      paidAmount: '₹' + paid.toLocaleString('en-IN'),
+    };
+  }, [filteredSalesInvoices, selectedModuleId]);
+
+  const handleResetSalesFilters = () => {
+    setSalesChannelFilter('all');
+    setSalesWarehouseFilter('all');
+    setSalesDatePreset('all');
+    setSalesStartDate('');
+    setSalesEndDate('');
+  };
+
+  const isSalesFiltered =
+    salesChannelFilter !== 'all' ||
+    salesWarehouseFilter !== 'all' ||
+    salesDatePreset !== 'all' ||
+    Boolean(salesStartDate) ||
+    Boolean(salesEndDate);
+
   const handleSelectModule = (item) => {
     setSearchParams({ module: item.id });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -288,81 +496,234 @@ export default function ModuleShortcutsSummary() {
       );
     }
 
-    if (!moduleRecords || moduleRecords.length === 0) {
-      return (
-        <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-          <p className="text-xs font-semibold">No recent records found in {selectedModule?.title}.</p>
-          <button
-            onClick={() => navigate(selectedModule?.path || '/')}
-            className="mt-2 text-xs font-bold text-brand hover:underline"
-          >
-            Create first entry in {selectedModule?.title} →
-          </button>
-        </div>
-      );
-    }
-
     switch (selectedModuleId) {
-      case 'sales':
+      case 'sales': {
+        const recordsToDisplay = filteredSalesInvoices;
+
         return (
-          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Invoice #</th>
-                  <th className="py-3 px-4">Customer Name</th>
-                  <th className="py-3 px-4">Invoice Date</th>
-                  <th className="py-3 px-4 text-right">Grand Total (₹)</th>
-                  <th className="py-3 px-4 text-right">Paid (₹)</th>
-                  <th className="py-3 px-4 text-right">Remaining Due (₹)</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
-                {moduleRecords.slice(0, 8).map((inv) => (
-                  <tr key={inv._id} className="hover:bg-slate-50/60 transition">
-                    <td className="py-2.5 px-4 font-mono font-bold text-brand">
-                      {inv.invoice_number}
-                    </td>
-                    <td className="py-2.5 px-4 font-semibold text-slate-800">
-                      {inv.customer_id?.customer_name || inv.customer_name || 'Direct Customer'}
-                    </td>
-                    <td className="py-2.5 px-4 font-mono text-slate-500">
-                      {new Date(inv.invoice_date).toLocaleDateString('en-IN')}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
-                      ₹{Number(inv.grand_total || 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono text-emerald-600 font-semibold">
-                      ₹{Number(inv.paid_amount || 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
-                      ₹{Number(inv.balance_amount !== undefined ? inv.balance_amount : (inv.grand_total - (inv.paid_amount || 0))).toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-2.5 px-4 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                        inv.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        inv.payment_status === 'partially_paid' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                        'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
-                        {inv.payment_status || 'unpaid'}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4 text-center">
+          <div className="space-y-4">
+            {/* ========================================================== */}
+            {/* SALES DYNAMIC FILTER TOOLBAR (B2B, B2C, D2C, RETAIL, DATE, WH) */}
+            {/* ========================================================== */}
+            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200 space-y-3.5">
+              {/* Filter Row 1: Channels (All | B2B | B2C | D2C | Retail) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1 pr-1 shrink-0">
+                    <Tag className="w-3.5 h-3.5 text-slate-400" /> Channel:
+                  </span>
+                  {[
+                    { id: 'all', label: 'All Sales', count: salesChannelCounts.all },
+                    { id: 'b2b', label: 'B2B Wholesale', count: salesChannelCounts.b2b },
+                    { id: 'b2c', label: 'B2C Consumer', count: salesChannelCounts.b2c },
+                    { id: 'd2c', label: 'D2C Direct', count: salesChannelCounts.d2c },
+                    { id: 'retail', label: 'Retail', count: salesChannelCounts.retail },
+                  ].map((ch) => {
+                    const isActive = salesChannelFilter === ch.id;
+                    return (
                       <button
-                        onClick={() => navigate('/sales/invoices')}
-                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                        key={ch.id}
+                        type="button"
+                        onClick={() => setSalesChannelFilter(ch.id)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-xl whitespace-nowrap transition flex items-center gap-1.5 shrink-0 shadow-2xs ${
+                          isActive
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100/70'
+                        }`}
                       >
-                        View Invoice
+                        <span>{ch.label}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                            isActive ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {ch.count}
+                        </span>
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    );
+                  })}
+                </div>
+
+                {isSalesFiltered && (
+                  <button
+                    type="button"
+                    onClick={handleResetSalesFilters}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition shrink-0"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset Filters</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Row 2: Warehouse Dropdown & Date Presets */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1 border-t border-slate-200/60 text-xs">
+                {/* Warehouse Dropdown Selector */}
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                  <Building className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="font-semibold text-slate-600 shrink-0">Warehouse:</span>
+                  <select
+                    value={salesWarehouseFilter}
+                    onChange={(e) => setSalesWarehouseFilter(e.target.value)}
+                    className="w-full bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
+                  >
+                    <option value="all">All Warehouses ({warehousesList.length})</option>
+                    {warehousesList.map((wh) => (
+                      <option key={wh._id || wh.id} value={wh._id || wh.id}>
+                        {wh.warehouse_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Quick Preset */}
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                  <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="font-semibold text-slate-600 shrink-0">Date:</span>
+                  <select
+                    value={salesDatePreset}
+                    onChange={(e) => setSalesDatePreset(e.target.value)}
+                    className="w-full bg-transparent font-bold text-slate-800 outline-none cursor-pointer"
+                  >
+                    <option value="all">All Time (All Dates)</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                    <option value="custom">Custom Date Range</option>
+                  </select>
+                </div>
+
+                {/* Custom Date Range Inputs (when Custom is selected or dates entered) */}
+                <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-xl border border-slate-200">
+                  <input
+                    type="date"
+                    value={salesStartDate}
+                    onChange={(e) => {
+                      setSalesStartDate(e.target.value);
+                      setSalesDatePreset('custom');
+                    }}
+                    className="w-full text-[11px] font-mono text-slate-700 outline-none bg-transparent"
+                    title="From Date"
+                  />
+                  <span className="text-slate-400 font-bold">to</span>
+                  <input
+                    type="date"
+                    value={salesEndDate}
+                    onChange={(e) => {
+                      setSalesEndDate(e.target.value);
+                      setSalesDatePreset('custom');
+                    }}
+                    className="w-full text-[11px] font-mono text-slate-700 outline-none bg-transparent"
+                    title="To Date"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Invoices Table */}
+            {recordsToDisplay.length === 0 ? (
+              <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <Filter className="w-7 h-7 mx-auto mb-2 text-slate-300" />
+                <p className="text-xs font-bold text-slate-700">No sales invoices match the selected filter criteria.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Try selecting "All Sales" or "All Warehouses", or reset date filters.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResetSalesFilters}
+                  className="mt-3 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-900 text-white"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Invoice #</th>
+                      <th className="py-3 px-4">Customer Name</th>
+                      <th className="py-3 px-4 text-center">Channel</th>
+                      <th className="py-3 px-4">Warehouse</th>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4 text-right">Grand Total (₹)</th>
+                      <th className="py-3 px-4 text-right">Paid (₹)</th>
+                      <th className="py-3 px-4 text-right">Due (₹)</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-sans">
+                    {recordsToDisplay.map((inv) => {
+                      const channel = getInvoiceChannel(inv);
+                      const whName = getInvoiceWarehouseName(inv);
+
+                      return (
+                        <tr key={inv._id} className="hover:bg-slate-50/60 transition">
+                          <td className="py-2.5 px-4 font-mono font-bold text-brand">
+                            {inv.invoice_number}
+                          </td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-800">
+                            {inv.customer_id?.customer_name || inv.customer_name || 'Direct Customer'}
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase ${getChannelBadgeStyle(
+                                channel
+                              )}`}
+                            >
+                              {channel}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-600 text-[11px] font-medium">
+                            <div className="flex items-center gap-1 truncate max-w-[150px]" title={whName}>
+                              <Building className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{whName}</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-4 font-mono text-slate-500 whitespace-nowrap">
+                            {new Date(inv.invoice_date).toLocaleDateString('en-IN')}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
+                            ₹{Number(inv.grand_total || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-emerald-600 font-semibold">
+                            ₹{Number(inv.paid_amount || 0).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
+                            ₹{Number(inv.balance_amount !== undefined ? inv.balance_amount : inv.grand_total - (inv.paid_amount || 0)).toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                                inv.payment_status === 'paid'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : inv.payment_status === 'partially_paid'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                            >
+                              {inv.payment_status || 'unpaid'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                            <button
+                              onClick={() => navigate('/sales/invoices')}
+                              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                            >
+                              View Invoice
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         );
+      }
 
       case 'product_management':
         return (
@@ -458,14 +819,18 @@ export default function ModuleShortcutsSummary() {
                       ₹{Number(bill.grand_total || 0).toLocaleString('en-IN')}
                     </td>
                     <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
-                      ₹{Number(bill.balance_amount !== undefined ? bill.balance_amount : (bill.grand_total - (bill.paid_amount || 0))).toLocaleString('en-IN')}
+                      ₹{Number(bill.balance_amount !== undefined ? bill.balance_amount : bill.grand_total - (bill.paid_amount || 0)).toLocaleString('en-IN')}
                     </td>
                     <td className="py-2.5 px-4 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                        bill.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        bill.payment_status === 'partially_paid' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                        'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                          bill.payment_status === 'paid'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : bill.payment_status === 'partially_paid'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
+                      >
                         {bill.payment_status || 'unpaid'}
                       </span>
                     </td>
@@ -568,10 +933,13 @@ export default function ModuleShortcutsSummary() {
                       {ld.mobile || '—'}
                     </td>
                     <td className="py-2.5 px-4 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                        ld.priority === 'hot' || ld.priority === 'high' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                        'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                          ld.priority === 'hot' || ld.priority === 'high'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
+                      >
                         {ld.priority || 'medium'}
                       </span>
                     </td>
@@ -615,11 +983,13 @@ export default function ModuleShortcutsSummary() {
                       {new Date(tx.transaction_date || tx.createdAt).toLocaleDateString('en-IN')}
                     </td>
                     <td className="py-2.5 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                        tx.transaction_type === 'income' || tx.type === 'income' || tx.type === 'credit'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                          tx.transaction_type === 'income' || tx.type === 'income' || tx.type === 'credit'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
+                      >
                         {tx.transaction_type || tx.type || 'entry'}
                       </span>
                     </td>
@@ -629,11 +999,13 @@ export default function ModuleShortcutsSummary() {
                     <td className="py-2.5 px-4 text-slate-600 truncate max-w-xs">
                       {tx.description || tx.reference_number || 'Finance entry'}
                     </td>
-                    <td className={`py-2.5 px-4 text-right font-mono font-bold ${
-                      tx.transaction_type === 'income' || tx.type === 'income' || tx.type === 'credit'
-                        ? 'text-emerald-700'
-                        : 'text-rose-700'
-                    }`}>
+                    <td
+                      className={`py-2.5 px-4 text-right font-mono font-bold ${
+                        tx.transaction_type === 'income' || tx.type === 'income' || tx.type === 'credit'
+                          ? 'text-emerald-700'
+                          : 'text-rose-700'
+                      }`}
+                    >
                       ₹{Number(tx.amount || 0).toLocaleString('en-IN')}
                     </td>
                     <td className="py-2.5 px-4 text-center">
@@ -681,10 +1053,13 @@ export default function ModuleShortcutsSummary() {
                       {tg.achievement_pct || tg.progress_percent || 0}%
                     </td>
                     <td className="py-2.5 px-4 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                        tg.status === 'achieved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                          tg.status === 'achieved'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
+                      >
                         {tg.status || 'in_progress'}
                       </span>
                     </td>
@@ -724,7 +1099,13 @@ export default function ModuleShortcutsSummary() {
                       #{idx + 1}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-slate-800">
-                      {rec.name || rec.title || rec.customer_name || rec.supplier_name || rec.product_name || rec.campaign_name || 'Entry'}
+                      {rec.name ||
+                        rec.title ||
+                        rec.customer_name ||
+                        rec.supplier_name ||
+                        rec.product_name ||
+                        rec.campaign_name ||
+                        'Entry'}
                     </td>
                     <td className="py-2.5 px-4 font-mono text-slate-500">
                       {rec.code || rec.number || rec.sku || rec.po_number || rec.order_number || rec._id?.substring(0, 8) || '—'}
@@ -821,18 +1202,22 @@ export default function ModuleShortcutsSummary() {
             </div>
           </div>
 
-          {/* High-Level Summary KPI Cards */}
+          {/* High-Level Summary KPI Cards (Dynamically recalculated on sales filter) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                 {selectedModule.primaryLabel}
               </span>
               <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono mt-1">
-                {selectedModule.primaryMetric}
+                {salesFilteredSummary ? salesFilteredSummary.turnover : selectedModule.primaryMetric}
               </p>
               <p className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Primary Operational Figure</span>
+                <span>
+                  {selectedModuleId === 'sales' && isSalesFiltered
+                    ? 'Filtered Turnover Total'
+                    : 'Primary Operational Figure'}
+                </span>
               </p>
             </div>
 
@@ -841,11 +1226,15 @@ export default function ModuleShortcutsSummary() {
                 {selectedModule.secondaryLabel}
               </span>
               <p className="text-2xl sm:text-3xl font-extrabold text-slate-800 font-mono mt-1">
-                {selectedModule.secondaryMetric}
+                {salesFilteredSummary ? salesFilteredSummary.invoicesCount : selectedModule.secondaryMetric}
               </p>
               <p className="text-[11px] text-blue-600 font-medium mt-1 flex items-center gap-1">
                 <Activity className="w-3.5 h-3.5" />
-                <span>Activity & Volume</span>
+                <span>
+                  {selectedModuleId === 'sales' && isSalesFiltered
+                    ? 'Filtered Invoices Billed'
+                    : 'Activity & Volume'}
+                </span>
               </p>
             </div>
 
@@ -854,33 +1243,45 @@ export default function ModuleShortcutsSummary() {
                 {selectedModule.tertiaryLabel}
               </span>
               <p className="text-2xl sm:text-3xl font-extrabold text-slate-700 font-mono mt-1">
-                {selectedModule.tertiaryMetric}
+                {salesFilteredSummary ? salesFilteredSummary.pendingReceivables : selectedModule.tertiaryMetric}
               </p>
               <p className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1">
                 <Sparkle className="w-3.5 h-3.5 text-amber-500" />
-                <span>Key Performance Indicator</span>
+                <span>
+                  {selectedModuleId === 'sales' && isSalesFiltered
+                    ? 'Filtered Dues Pending'
+                    : 'Key Performance Indicator'}
+                </span>
               </p>
             </div>
           </div>
 
           {/* ============================================================== */}
-          {/* REAL LIVE RECORDS TABLE (TAP DETAILS REQUIREMENT)               */}
+          {/* REAL LIVE RECORDS TABLE (TAP DETAILS REQUIREMENT WITH FILTERS) */}
           {/* ============================================================== */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                   <FileText className="w-4 h-4 text-brand" />
-                  <span>Recent Live {selectedModule.title} Records</span>
+                  <span>
+                    {selectedModuleId === 'sales'
+                      ? 'Live Sales Invoices Ledger'
+                      : `Recent Live ${selectedModule.title} Records`}
+                  </span>
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Real ERP transactions and entries synchronized from the database.
+                  {selectedModuleId === 'sales'
+                    ? 'Filter commercial sales across B2B, B2C, D2C, Retail, Date, and Warehouses.'
+                    : 'Real ERP transactions and entries synchronized from the database.'}
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-1 text-[11px] font-mono font-bold rounded-lg bg-slate-100 text-slate-700">
-                  {moduleRecords.length} Active Records
+                  {selectedModuleId === 'sales'
+                    ? `${filteredSalesInvoices.length} of ${moduleRecords.length} Invoices`
+                    : `${moduleRecords.length} Active Records`}
                 </span>
                 <button
                   onClick={() => navigate(selectedModule.path)}
@@ -892,7 +1293,7 @@ export default function ModuleShortcutsSummary() {
               </div>
             </div>
 
-            {/* Table Component */}
+            {/* Live Table Component */}
             {renderLiveRecordsTable()}
           </div>
 
@@ -1050,7 +1451,7 @@ export default function ModuleShortcutsSummary() {
           />
 
           {/* ============================================================== */}
-          {/* TOP EXECUTIVE SUMMARY STRIP (NOT ONLY COUNT REQUIREMENT)       */}
+          {/* TOP EXECUTIVE SUMMARY STRIP                                    */}
           {/* ============================================================== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 1. Total Turnover */}
@@ -1165,7 +1566,7 @@ export default function ModuleShortcutsSummary() {
             <div className="bg-white rounded-3xl border border-slate-200/80 p-16 text-center shadow-xs">
               <Search className="w-8 h-8 text-slate-400 mx-auto mb-3" />
               <p className="text-sm font-bold text-slate-700">No matching module found</p>
-              <p className="text-xs text-slate-500 mt-1">Try another search keyword or category filter.</p>
+              <p className="text-xs text-slate-500 mt-1">Try another search keyword.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">

@@ -750,7 +750,7 @@ exports.updateSalesOrder = async (req, res) => {
 // ======================== SALES INVOICES ========================
 exports.getSalesInvoices = async (req, res) => {
   try {
-    const { search, payment_status, page = 1, limit = 10 } = req.query;
+    const { search, payment_status, page = 1, limit = 50 } = req.query;
     const query = { is_deleted: false };
 
     if (payment_status && payment_status !== 'all') query.payment_status = payment_status;
@@ -764,6 +764,7 @@ exports.getSalesInvoices = async (req, res) => {
       SalesInvoice.find(query)
         .populate('customer_id')
         .populate('so_id')
+        .populate('warehouse_id')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
