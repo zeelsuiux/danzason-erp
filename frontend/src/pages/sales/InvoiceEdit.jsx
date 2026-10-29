@@ -20,7 +20,8 @@ import PageHeader from '../../components/common/PageHeader';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import StatusBadge from '../../components/common/StatusBadge';
 import ProductSearchDropdown from '../../components/common/ProductSearchDropdown';
-import { salesApi, Dt } from '../../services/procurementService';
+import { salesApi, Dt, St } from '../../services/procurementService';
+import { calculateDynamicUnitPrice } from '../../utils/pricingRules';
 
 export default function InvoiceEdit() {
   const { id } = useParams();
@@ -31,6 +32,7 @@ export default function InvoiceEdit() {
   const [invoice, setInvoice] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [pricingRules, setPricingRules] = useState(null);
   const [pricingTier, setPricingTier] = useState('B2B'); // 'B2B' | 'B2C'
   const [finalDiscountType, setFinalDiscountType] = useState('fixed'); // 'percentage' | 'fixed'
   const [finalDiscountValue, setFinalDiscountValue] = useState(0);
@@ -66,15 +68,19 @@ export default function InvoiceEdit() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [invRes, custRes, prodRes] = await Promise.all([
+      const [invRes, custRes, prodRes, pricingRes] = await Promise.all([
         salesApi.getInvoiceById(id),
         salesApi.getCustomers({ limit: 100 }).catch(() => ({ data: [] })),
         Dt.getProducts({ limit: 200, view: 'color' }).catch(() => ({ data: [] })),
+        St.getPricingRules().catch(() => ({ data: null })),
       ]);
 
       const inv = invRes.data;
       setInvoice(inv);
       setCustomers(Array.isArray(custRes.data) ? custRes.data : []);
+      if (pricingRes?.data) {
+        setPricingRules(pricingRes.data);
+      }
       let prodList = Array.isArray(prodRes.data) ? prodRes.data : [];
       if (prodList.length === 0) {
         const fallback = await Dt.getProducts({ limit: 100 }).catch(() => ({ data: [] }));
@@ -173,9 +179,13 @@ export default function InvoiceEdit() {
         );
         if (!prod) return it;
 
-        const b2b = Number(prod.b2b_price ?? prod.selling_rate ?? prod.price ?? 0);
-        const b2c = Number(prod.b2c_price ?? prod.mrp ?? (b2b > 0 ? Math.round(b2b * 1.35) : 0));
-        const newRate = newTier === 'B2C' ? b2c : b2b;
+        const dyn = calculateDynamicUnitPrice(
+          prod,
+          it.quantity || 1,
+          newTier,
+          pricingRules
+        );
+        const newRate = dyn.unitPrice;
 
         const gross = (Number(it.quantity) || 1) * newRate;
         let discAmt = it.discount_amount;
@@ -229,6 +239,14 @@ export default function InvoiceEdit() {
 
     if (field === 'quantity') {
       const qty = Math.max(1, parseInt(value, 10) || 1);
+      const prod = products.find(
+        (p) => (p._id || p.id || p.product_id) === updated[index].product_id
+      );
+      if (prod) {
+        const dyn = calculateDynamicUnitPrice(prod, qty, pricingTier, pricingRules);
+        updated[index].unit_price = dyn.unitPrice;
+        updated[index].pricing_info = dyn.pricingInfo;
+      }
       const gross = qty * (Number(updated[index].unit_price) || 0);
       if (updated[index].discount_type === 'percentage') {
         updated[index].discount_amount = Number(
@@ -280,9 +298,9 @@ export default function InvoiceEdit() {
 
     const updated = [...form.items];
     if (productObj) {
-      const b2b = Number(productObj.b2b_price ?? productObj.selling_rate ?? productObj.price ?? 0);
-      const b2c = Number(productObj.b2c_price ?? productObj.mrp ?? (b2b > 0 ? Math.round(b2b * 1.35) : 0));
-      const rate = pricingTier === 'B2C' ? b2c : b2b;
+      const qty = Number(updated[index].quantity) || 1;
+      const dyn = calculateDynamicUnitPrice(productObj, qty, pricingTier, pricingRules);
+      const rate = dyn.unitPrice;
 
       updated[index] = {
         ...updated[index],
@@ -291,6 +309,7 @@ export default function InvoiceEdit() {
         hsn_code: productObj.hsn_code || '6109',
         uom: productObj.uom || 'PCS',
         unit_price: rate,
+        pricing_info: dyn.pricingInfo,
         discount_type: updated[index].discount_type || 'percentage',
         discount_percentage: updated[index].discount_percentage || 0,
         discount_amount: updated[index].discount_amount || 0,
@@ -738,6 +757,11 @@ export default function InvoiceEdit() {
                           />
                           <Lock className="w-3 h-3 text-slate-400 absolute left-2 top-2.5 pointer-events-none" />
                         </div>
+                        {it.pricing_info && (
+                          <p className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 mt-1 font-mono leading-tight">
+                            {it.pricing_info}
+                          </p>
+                        )}
                       </td>
 
                       {/* Discount (% / ₹) Dual Mode */}
