@@ -2543,10 +2543,26 @@ exports.savePricingRules = async (req, res) => {
 
 exports.calculateChannelPrice = async (req, res) => {
   try {
-    const { purchase_rate = 0, quantity = 1, channel = 'B2B' } = req.body;
-    const pRate = Number(purchase_rate) || 0;
+    const { product_id, purchase_rate = 0, quantity = 1, channel = 'B2B' } = req.body;
+    let pRate = Number(purchase_rate) || 0;
     const qty = Math.max(1, Number(quantity) || 1);
     const ch = (channel || 'B2B').toUpperCase();
+    let fifoResult = null;
+
+    if (product_id) {
+      const prod = await Product.findById(product_id);
+      if (prod) {
+        if (typeof prod.calculateFifoCost === 'function') {
+          fifoResult = prod.calculateFifoCost(qty);
+          if (fifoResult && fifoResult.effective_cost > 0) {
+            pRate = fifoResult.effective_cost;
+          }
+        }
+        if (!pRate) {
+          pRate = Number(prod.purchase_rate || prod.cost_rate || 0);
+        }
+      }
+    }
 
     let rule = await PricingRule.findOne({ is_active: true });
     if (!rule || !rule.ranges || rule.ranges.length === 0) {
@@ -2558,6 +2574,8 @@ exports.calculateChannelPrice = async (req, res) => {
           channel: ch,
           markup_percent: 0,
           calculated_rate: pRate,
+          fifo_summary: fifoResult?.summary || '',
+          is_blended: Boolean(fifoResult?.is_blended),
           tier_label: 'Default Rate (No Rule)',
         },
       });
@@ -2580,12 +2598,7 @@ exports.calculateChannelPrice = async (req, res) => {
       pct = matchedRange.b2c_percent;
     }
 
-    let calculatedRate = pRate;
-    if (rule.pricing_method === 'margin') {
-      calculatedRate = pct < 100 ? pRate / (1 - pct / 100) : pRate;
-    } else {
-      calculatedRate = pRate * (1 + pct / 100);
-    }
+    let calculatedRate = pRate * (1 + pct / 100);
     calculatedRate = Math.round(calculatedRate * 100) / 100;
 
     res.json({
@@ -2596,8 +2609,10 @@ exports.calculateChannelPrice = async (req, res) => {
         channel: ch,
         markup_percent: pct,
         calculated_rate: calculatedRate,
+        fifo_summary: fifoResult?.summary || '',
+        is_blended: Boolean(fifoResult?.is_blended),
         tier_label: matchedRange.label || `${matchedRange.min_qty} - ${matchedRange.max_qty} Qty`,
-        pricing_method: rule.pricing_method,
+        pricing_method: 'markup',
       },
     });
   } catch (err) {

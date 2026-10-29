@@ -1,5 +1,18 @@
 const mongoose = require('mongoose');
 
+const purchaseBatchSchema = new mongoose.Schema(
+  {
+    batch_number: { type: String, default: '' },
+    source_type: { type: String, enum: ['GRN', 'PURCHASE_BILL', 'INITIAL_STOCK', 'MANUAL'], default: 'PURCHASE_BILL' },
+    source_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+    purchase_rate: { type: Number, required: true, default: 0 },
+    initial_qty: { type: Number, required: true, default: 0 },
+    remaining_qty: { type: Number, required: true, default: 0 },
+    received_at: { type: Date, default: Date.now },
+  },
+  { _id: true, timestamps: true }
+);
+
 const productSchema = new mongoose.Schema(
   {
     product_name: {
@@ -180,6 +193,7 @@ const productSchema = new mongoose.Schema(
         attributes: { type: mongoose.Schema.Types.Mixed, default: {} },
       },
     ],
+    purchase_batches: [purchaseBatchSchema],
     is_deleted: {
       type: Boolean,
       default: false,
@@ -191,6 +205,83 @@ const productSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   }
 );
+
+// FIFO Cost Calculation Method
+productSchema.methods.calculateFifoCost = function (requestedQty) {
+  const qty = Math.max(1, parseInt(requestedQty, 10) || 1);
+  const activeBatches = (this.purchase_batches || [])
+    .filter((b) => Number(b.remaining_qty) > 0)
+    .sort((a, b) => new Date(a.received_at) - new Date(b.received_at));
+
+  if (!activeBatches.length) {
+    const fallbackRate = Number(this.purchase_rate || this.cost_rate || 0);
+    return {
+      effective_cost: fallbackRate,
+      total_cost: fallbackRate * qty,
+      allocations: [],
+      is_blended: false,
+      summary: fallbackRate > 0 ? ('Base ₹' + fallbackRate) : '',
+    };
+  }
+
+  let needed = qty;
+  let totalCost = 0;
+  const allocations = [];
+
+  for (const b of activeBatches) {
+    if (needed <= 0) break;
+    const available = Number(b.remaining_qty) || 0;
+    const take = Math.min(available, needed);
+    const rate = Number(b.purchase_rate) || 0;
+
+    totalCost += take * rate;
+    needed -= take;
+    allocations.push({
+      batch_id: b._id,
+      batch_number: b.batch_number || 'Batch',
+      qty: take,
+      purchase_rate: rate,
+    });
+  }
+
+  if (needed > 0) {
+    const fallbackRate = Number(this.purchase_rate || this.cost_rate || activeBatches[activeBatches.length - 1]?.purchase_rate || 0);
+    totalCost += needed * fallbackRate;
+    allocations.push({
+      batch_id: null,
+      batch_number: 'Current Stock',
+      qty: needed,
+      purchase_rate: fallbackRate,
+    });
+  }
+
+  const effectiveCost = Math.round((totalCost / qty) * 100) / 100;
+  const summary = allocations.map((a) => a.qty + '@₹' + a.purchase_rate).join(' + ');
+
+  return {
+    effective_cost: effectiveCost,
+    total_cost: Math.round(totalCost * 100) / 100,
+    allocations,
+    is_blended: allocations.length > 1,
+    summary,
+  };
+};
+
+// FIFO Stock Deduction Method
+productSchema.methods.deductFifoStock = function (qtyToDeduct) {
+  let needed = Math.max(0, parseInt(qtyToDeduct, 10) || 0);
+  const activeBatches = (this.purchase_batches || [])
+    .filter((b) => Number(b.remaining_qty) > 0)
+    .sort((a, b) => new Date(a.received_at) - new Date(b.received_at));
+
+  for (const b of activeBatches) {
+    if (needed <= 0) break;
+    const available = Number(b.remaining_qty) || 0;
+    const take = Math.min(available, needed);
+    b.remaining_qty = Math.max(0, available - take);
+    needed -= take;
+  }
+};
 
 // Pre-save hook
 productSchema.pre('save', function (next) {

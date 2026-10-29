@@ -206,7 +206,7 @@ export default function SalesOrders() {
           ...it,
           unit_price: newRate,
           discount_amount: discAmt,
-          pricing_info: dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null,
+          pricing_info: dyn.pricingInfo || (dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null),
         };
       });
       return { ...prev, items: updatedItems };
@@ -249,7 +249,7 @@ export default function SalesOrders() {
         hsn_code: productObj.hsn_code || '6109',
         uom: productObj.uom || 'PCS',
         unit_price: rate,
-        pricing_info: dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null,
+        pricing_info: dyn.pricingInfo || (dyn.isDynamic ? `+${dyn.percent}% (${dyn.slabLabel})` : null),
         discount_type: updated[index].discount_type || 'percentage',
         discount_percentage: updated[index].discount_percentage || 0,
         discount_amount: updated[index].discount_amount || 0,
@@ -294,9 +294,9 @@ export default function SalesOrders() {
         );
         if (prod) {
           const dyn = calculateDynamicUnitPrice(prod, qty, pricingTier, pricingRules);
-          if (dyn.isDynamic) {
+          if (dyn.isDynamic || dyn.pricingInfo) {
             it.unit_price = dyn.unitPrice;
-            it.pricing_info = `+${dyn.percent}% (${dyn.slabLabel})`;
+            it.pricing_info = dyn.pricingInfo || `+${dyn.percent}% (${dyn.slabLabel})`;
           }
         }
       }
