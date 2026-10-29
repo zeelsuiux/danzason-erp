@@ -37,6 +37,8 @@ import {
   Check,
   BarChart3,
   Calendar,
+  Eye,
+  Plus,
 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import dashboardService from '../../services/dashboardService';
@@ -53,6 +55,10 @@ export default function ModuleShortcutsSummary() {
 
   // Selected module for the dedicated summary view
   const selectedModuleId = searchParams.get('module');
+
+  // Live Records for the tapped module
+  const [moduleRecords, setModuleRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
 
   const iconMap = {
     Receipt: Receipt,
@@ -97,6 +103,101 @@ export default function ModuleShortcutsSummary() {
     loadData();
   }, []);
 
+  // Fetch live real records when a module is selected on tap
+  useEffect(() => {
+    if (!selectedModuleId) {
+      setModuleRecords([]);
+      return;
+    }
+
+    const fetchLiveModuleRecords = async () => {
+      setRecordsLoading(true);
+      try {
+        let endpoint = '';
+        switch (selectedModuleId) {
+          case 'sales':
+            endpoint = '/api/v1/sales/invoices';
+            break;
+          case 'product_management':
+            endpoint = '/api/v1/products';
+            break;
+          case 'purchase_management':
+            endpoint = '/api/v1/purchase/invoices';
+            break;
+          case 'production_management':
+            endpoint = '/api/v1/purchase/orders?type=manufacturing';
+            break;
+          case 'inventory_warehouse':
+            endpoint = '/api/v1/raw-materials';
+            break;
+          case 'order_delivery':
+            endpoint = '/api/v1/sales/orders';
+            break;
+          case 'crm_customer':
+            endpoint = '/api/v1/sales/customers';
+            break;
+          case 'accounts_finance':
+            endpoint = '/api/v1/finance/transactions';
+            break;
+          case 'expense_management':
+            endpoint = '/api/v1/finance/transactions?type=expense';
+            break;
+          case 'team_performance':
+            endpoint = '/api/v1/team';
+            break;
+          case 'marketing_dashboard':
+            endpoint = '/api/v1/marketing/campaigns';
+            break;
+          case 'lead_followup':
+            endpoint = '/api/v1/sales/leads';
+            break;
+          case 'repeat_order':
+            endpoint = '/api/v1/sales/repeat-orders';
+            break;
+          case 'upsell_cross_sell':
+            endpoint = '/api/v1/sales/upsell/opportunities';
+            break;
+          case 'customer_service_complaints':
+            endpoint = '/api/v1/complaints';
+            break;
+          case 'owner_capital':
+            endpoint = '/api/v1/finance/capital';
+            break;
+          case 'profitability_analysis':
+            endpoint = '/api/v1/products';
+            break;
+          case 'target_goal':
+            endpoint = '/api/v1/targets';
+            break;
+          default:
+            endpoint = '';
+        }
+
+        if (endpoint) {
+          const res = await fetch(endpoint, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': '2ee062fd20e15a2da9c359fac339da2c24396001c9d748df0ef4c6a1d6a776a6',
+              'Authorization': 'Bearer 2ee062fd20e15a2da9c359fac339da2c24396001c9d748df0ef4c6a1d6a776a6',
+            },
+          });
+          const json = await res.json();
+          const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+          setModuleRecords(items);
+        } else {
+          setModuleRecords([]);
+        }
+      } catch (err) {
+        console.error('Failed to load module live records:', err);
+        setModuleRecords([]);
+      } finally {
+        setRecordsLoading(false);
+      }
+    };
+
+    fetchLiveModuleRecords();
+  }, [selectedModuleId]);
+
   const selectedModule = useMemo(() => {
     if (!selectedModuleId) return null;
     return shortcuts.find((item) => item.id === selectedModuleId) || null;
@@ -117,11 +218,9 @@ export default function ModuleShortcutsSummary() {
 
   const filteredShortcuts = useMemo(() => {
     return shortcuts.filter((item) => {
-      // Category filter
       if (selectedCategory !== 'all' && item.category !== selectedCategory) {
         return false;
       }
-      // Search filter
       if (!searchTerm.trim()) return true;
       const q = searchTerm.toLowerCase();
       const titleMatch = item.title?.toLowerCase().includes(q);
@@ -195,6 +294,480 @@ export default function ModuleShortcutsSummary() {
     }
   };
 
+  // Helper to render live records table based on selected module
+  const renderLiveRecordsTable = () => {
+    if (recordsLoading) {
+      return (
+        <div className="py-12 text-center text-slate-400">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-600" />
+          <p className="text-xs font-semibold">Loading real {selectedModule?.title} records from ERP database...</p>
+        </div>
+      );
+    }
+
+    if (!moduleRecords || moduleRecords.length === 0) {
+      return (
+        <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+          <p className="text-xs font-semibold">No recent records found in {selectedModule?.title}.</p>
+          <button
+            onClick={() => navigate(selectedModule?.path || '/')}
+            className="mt-2 text-xs font-bold text-brand hover:underline"
+          >
+            Create first entry in {selectedModule?.title} →
+          </button>
+        </div>
+      );
+    }
+
+    switch (selectedModuleId) {
+      case 'sales':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Invoice #</th>
+                  <th className="py-3 px-4">Customer Name</th>
+                  <th className="py-3 px-4">Invoice Date</th>
+                  <th className="py-3 px-4 text-right">Grand Total (₹)</th>
+                  <th className="py-3 px-4 text-right">Paid (₹)</th>
+                  <th className="py-3 px-4 text-right">Remaining Due (₹)</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((inv) => (
+                  <tr key={inv._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-mono font-bold text-brand">
+                      {inv.invoice_number}
+                    </td>
+                    <td className="py-2.5 px-4 font-semibold text-slate-800">
+                      {inv.customer_id?.customer_name || inv.customer_name || 'Direct Customer'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-500">
+                      {new Date(inv.invoice_date).toLocaleDateString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
+                      ₹{Number(inv.grand_total || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono text-emerald-600 font-semibold">
+                      ₹{Number(inv.paid_amount || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
+                      ₹{Number(inv.balance_amount !== undefined ? inv.balance_amount : (inv.grand_total - (inv.paid_amount || 0))).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                        inv.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        inv.payment_status === 'partially_paid' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {inv.payment_status || 'unpaid'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate('/sales/invoices')}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        View Invoice
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'product_management':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Product Name</th>
+                  <th className="py-3 px-4">Code / SKU</th>
+                  <th className="py-3 px-4 text-center">Current Stock</th>
+                  <th className="py-3 px-4 text-right">Cost Rate (₹)</th>
+                  <th className="py-3 px-4 text-right">Selling Price (₹)</th>
+                  <th className="py-3 px-4 text-center">Stock Alert</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((prod) => (
+                  <tr key={prod._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-bold text-slate-800">
+                      {prod.product_name}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-500">
+                      {prod.product_code || prod.sku || 'PROD'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-900">
+                      {prod.current_stock || 0} {prod.uom || 'PCS'}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono text-slate-600">
+                      ₹{Number(prod.cost_rate || prod.purchase_rate || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-700">
+                      ₹{Number(prod.selling_price || prod.b2b_price || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      {(prod.current_stock || 0) <= (prod.min_stock_alert || 5) ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          Low Stock Alert
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Adequate
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate('/products')}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Ledger & Rates
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'purchase_management':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Bill / Invoice #</th>
+                  <th className="py-3 px-4">Supplier / Vendor</th>
+                  <th className="py-3 px-4">Challan #</th>
+                  <th className="py-3 px-4">Bill Date</th>
+                  <th className="py-3 px-4 text-right">Grand Total (₹)</th>
+                  <th className="py-3 px-4 text-right">Balance Due (₹)</th>
+                  <th className="py-3 px-4 text-center">Payment Status</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((bill) => (
+                  <tr key={bill._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-mono font-bold text-brand">
+                      {bill.invoice_number}
+                    </td>
+                    <td className="py-2.5 px-4 font-semibold text-slate-800">
+                      {bill.supplier_id?.supplier_name || 'Vendor'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-600">
+                      {bill.challan_number || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-500">
+                      {new Date(bill.bill_date || bill.createdAt).toLocaleDateString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
+                      ₹{Number(bill.grand_total || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
+                      ₹{Number(bill.balance_amount !== undefined ? bill.balance_amount : (bill.grand_total - (bill.paid_amount || 0))).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                        bill.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        bill.payment_status === 'partially_paid' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {bill.payment_status || 'unpaid'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate('/purchase/invoices')}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Bill Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'crm_customer':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Customer Name</th>
+                  <th className="py-3 px-4">Contact Phone</th>
+                  <th className="py-3 px-4">City / State</th>
+                  <th className="py-3 px-4 text-right">Pending Balance (₹)</th>
+                  <th className="py-3 px-4 text-center">Reference</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((c) => (
+                  <tr key={c._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-bold text-slate-800">
+                      {c.customer_name}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-600">
+                      {c.mobile || c.phone || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-600">
+                      {c.billing_address?.city || c.city || 'Gujarat'}
+                    </td>
+                    <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-600">
+                      ₹{Number(c.pending_balance || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-center font-mono text-slate-500">
+                      {c.reference || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Active Client
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate(`/sales/customers/${c._id}`)}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Profile & AI
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'lead_followup':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Lead #</th>
+                  <th className="py-3 px-4">Prospect Name</th>
+                  <th className="py-3 px-4">Company</th>
+                  <th className="py-3 px-4">Mobile</th>
+                  <th className="py-3 px-4 text-center">Priority</th>
+                  <th className="py-3 px-4 text-center">Lead Status</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((ld) => (
+                  <tr key={ld._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-mono font-bold text-brand">
+                      {ld.lead_number}
+                    </td>
+                    <td className="py-2.5 px-4 font-semibold text-slate-800">
+                      {ld.lead_name}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-600">
+                      {ld.company_name || 'Retail Client'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-600">
+                      {ld.mobile || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                        ld.priority === 'hot' || ld.priority === 'high' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}>
+                        {ld.priority || 'medium'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-center font-bold text-slate-700 uppercase text-[10px]">
+                      {ld.status}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate('/sales/leads')}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Follow-up
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'accounts_finance':
+      case 'expense_management':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Transaction Date</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Source Category</th>
+                  <th className="py-3 px-4">Description / Reference</th>
+                  <th className="py-3 px-4 text-right">Amount (₹)</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((tx) => (
+                  <tr key={tx._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-mono text-slate-600">
+                      {new Date(tx.transaction_date || tx.createdAt).toLocaleDateString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                        tx.transaction_type === 'income' || tx.type === 'income' || tx.type === 'credit'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {tx.transaction_type || tx.type || 'entry'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 font-semibold text-slate-800">
+                      {tx.entry_source || tx.category || 'General'}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-600 truncate max-w-xs">
+                      {tx.description || tx.reference_number || 'Finance entry'}
+                    </td>
+                    <td className={`py-2.5 px-4 text-right font-mono font-bold ${
+                      tx.transaction_type === 'income' || tx.type === 'income' || tx.type === 'credit'
+                        ? 'text-emerald-700'
+                        : 'text-rose-700'
+                    }`}>
+                      ₹{Number(tx.amount || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate('/finance')}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Ledger
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'target_goal':
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Target Objective</th>
+                  <th className="py-3 px-4">Department</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4 text-center">Progress %</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((tg) => (
+                  <tr key={tg._id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-bold text-slate-800">
+                      {tg.title}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-600">
+                      {tg.department || 'Executive'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono uppercase text-slate-500 text-[10px]">
+                      {tg.category}
+                    </td>
+                    <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-900">
+                      {tg.achievement_pct || tg.progress_percent || 0}%
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                        tg.status === 'achieved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}>
+                        {tg.status || 'in_progress'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate('/growth/targets')}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Track Goal
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      default:
+        // Generic fallback table for other modules
+        return (
+          <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">#</th>
+                  <th className="py-3 px-4">Title / Name</th>
+                  <th className="py-3 px-4">Reference / Code</th>
+                  <th className="py-3 px-4 text-center">Status / State</th>
+                  <th className="py-3 px-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-sans">
+                {moduleRecords.slice(0, 8).map((rec, idx) => (
+                  <tr key={rec._id || idx} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-4 font-mono text-slate-400">
+                      #{idx + 1}
+                    </td>
+                    <td className="py-2.5 px-4 font-bold text-slate-800">
+                      {rec.name || rec.title || rec.customer_name || rec.supplier_name || rec.product_name || rec.campaign_name || 'Entry'}
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-slate-500">
+                      {rec.code || rec.number || rec.sku || rec.po_number || rec.order_number || rec._id?.substring(0, 8) || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 font-mono uppercase">
+                        {rec.status || 'Active'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
+                      <button
+                        onClick={() => navigate(selectedModule.path)}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-brand hover:text-white text-slate-700 transition"
+                      >
+                        Open Record
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* ============================================================== */}
@@ -216,7 +789,7 @@ export default function ModuleShortcutsSummary() {
               onClick={() => navigate(selectedModule.path)}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-sm"
             >
-              <span>Open Full {selectedModule.title}</span>
+              <span>Open Detailed {selectedModule.title}</span>
               <ExternalLink className="w-4 h-4" />
             </button>
           </div>
@@ -307,7 +880,40 @@ export default function ModuleShortcutsSummary() {
             </div>
           </div>
 
-          {/* DETAILED OPERATIONAL BREAKDOWN (ON-TAP DETAILS REQUIREMENT) */}
+          {/* ============================================================== */}
+          {/* REAL LIVE RECORDS TABLE (TAP DETAILS REQUIREMENT)               */}
+          {/* ============================================================== */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-brand" />
+                  <span>Recent Live {selectedModule.title} Records</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Real ERP transactions and entries synchronized from the database.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 text-[11px] font-mono font-bold rounded-lg bg-slate-100 text-slate-700">
+                  {moduleRecords.length} Active Records
+                </span>
+                <button
+                  onClick={() => navigate(selectedModule.path)}
+                  className="px-3 py-1 text-xs font-bold rounded-lg bg-brand text-white hover:bg-brand-600 transition flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span>Full Ledger</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Table Component */}
+            {renderLiveRecordsTable()}
+          </div>
+
+          {/* DETAILED OPERATIONAL BREAKDOWN (6 CARDS) */}
           {selectedModule.breakdown && selectedModule.breakdown.length > 0 && (
             <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
