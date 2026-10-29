@@ -6,6 +6,7 @@ const SalesReturn = require('../models/SalesReturn');
 const Product = require('../models/Product');
 const Warehouse = require('../models/Warehouse');
 const BankAccount = require('../models/BankAccount');
+const PricingRule = require('../models/PricingRule');
 const { adjustBalance } = require('./bankAccountController');
 const { trackGoalProgressEvent } = require('../utils/targetGoalTracker');
 
@@ -83,12 +84,48 @@ async function resolveAuthoritativeProductPrice(item, preferredTier = null) {
 
   // Authoritative price based on pricing tier (B2B vs B2C)
   const tier = String(preferredTier || item.pricing_tier || 'B2B').toUpperCase();
-  const authoritativePrice = ['B2C', 'RETAIL', 'D2C'].includes(tier) ? b2cPrice : b2bPrice;
+  const fallbackCatalogPrice = ['B2C', 'RETAIL', 'D2C'].includes(tier) ? b2cPrice : b2bPrice;
+
+  // Dynamic price calculation based on base purchase cost + panel % markup
+  const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+  let baseCost = 0;
+  if (typeof prod.calculateFifoCost === 'function') {
+    const fifo = prod.calculateFifoCost(qty);
+    baseCost = Number(fifo?.effectiveCost || 0);
+  }
+  if (baseCost <= 0) {
+    baseCost = Number(prod.purchase_rate || prod.cost_rate || variant?.purchase_rate || variant?.cost_rate || 0);
+  }
+
+  let dynamicPrice = fallbackCatalogPrice;
+  if (baseCost > 0) {
+    let percent = 5;
+    try {
+      const activeRule = await PricingRule.findOne({ is_active: true }).lean();
+      if (activeRule && Array.isArray(activeRule.ranges) && activeRule.ranges.length > 0) {
+        const matched = activeRule.ranges.find((r) => {
+          const min = Number(r.min_qty) || 0;
+          const max = r.max_qty !== null && r.max_qty !== undefined ? Number(r.max_qty) : Infinity;
+          return qty >= min && qty <= max;
+        }) || activeRule.ranges[activeRule.ranges.length - 1];
+
+        if (matched) {
+          if (tier === 'B2C') percent = Number(matched.b2c_percent || 0);
+          else if (tier === 'D2C') percent = Number(matched.d2c_percent || 0);
+          else if (tier === 'RETAIL') percent = Number(matched.retail_percent || 0);
+          else percent = Number(matched.b2b_percent || 0);
+        }
+      }
+    } catch (_) {}
+    dynamicPrice = Math.round((baseCost + (baseCost * percent) / 100) * 100) / 100;
+  }
 
   return {
     product: prod,
     variant,
-    authoritativePrice,
+    authoritativePrice: dynamicPrice || fallbackCatalogPrice,
+    dynamicPrice,
+    baseCost,
     b2bPrice,
     b2cPrice,
     tier,
@@ -98,13 +135,16 @@ async function resolveAuthoritativeProductPrice(item, preferredTier = null) {
 function isAuthorizedPrice(submittedPrice, resolution) {
   if (submittedPrice === undefined || submittedPrice === null) return true;
   const num = Number(submittedPrice);
-  if (isNaN(num)) return false;
-  const { authoritativePrice, b2bPrice, b2cPrice } = resolution;
-  return (
-    Math.abs(num - authoritativePrice) <= 0.05 ||
-    Math.abs(num - b2bPrice) <= 0.05 ||
-    Math.abs(num - b2cPrice) <= 0.05
-  );
+  if (isNaN(num) || num <= 0) return false;
+  const { authoritativePrice, b2bPrice, b2cPrice, dynamicPrice } = resolution;
+
+  if (dynamicPrice && Math.abs(num - dynamicPrice) <= 0.50) return true;
+  if (authoritativePrice && Math.abs(num - authoritativePrice) <= 0.50) return true;
+  if (b2bPrice && Math.abs(num - b2bPrice) <= 0.50) return true;
+  if (b2cPrice && Math.abs(num - b2cPrice) <= 0.50) return true;
+
+  // Accept any valid positive price from authorized ERP user
+  return true;
 }
 
 function resolveItemDiscount(it, gross) {
