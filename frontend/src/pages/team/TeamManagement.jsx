@@ -2743,9 +2743,11 @@ export default function TeamManagement() {
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {[
-                  'Sales Orders',
-                  'Sales Invoices',
-                  'Quotations',
+                  'B2B Sales Orders',
+                  'B2B Sales Invoices',
+                  'B2C Retail Invoices',
+                  'D2C Online Sales',
+                  'Wholesale Quotations',
                   'Customer Leads',
                   'Scheduled Follow-ups',
                   'Purchase Orders',

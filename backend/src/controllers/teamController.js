@@ -17,8 +17,18 @@ const DEFAULT_DEPARTMENTS = [
   {
     name: 'Sales & CRM',
     code: 'SALES',
-    description: 'Inbound inquiries, B2B sales pipelines, quotations, and client relations',
-    sub_modules: ['Sales Orders', 'Sales Invoices', 'Quotations', 'Customer Directory', 'Customer Leads', 'Scheduled Follow-ups', 'Sales Returns'],
+    description: 'Inbound inquiries, B2B wholesale orders, B2C retail invoicing, and client relations',
+    sub_modules: [
+      'B2B Sales Orders',
+      'B2B Sales Invoices',
+      'B2C Retail Invoices',
+      'D2C Online Sales',
+      'Wholesale Quotations',
+      'Customer Directory',
+      'Customer Leads',
+      'Scheduled Follow-ups',
+      'Sales Returns',
+    ],
     is_system: true,
   },
   {

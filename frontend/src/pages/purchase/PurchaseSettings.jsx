@@ -703,12 +703,14 @@ export default function PurchaseSettings() {
   // Available operations grouped by domain for Department Master
   const AVAILABLE_OPERATIONAL_GROUPS = [
     {
-      domain: 'Sales & Invoicing',
+      domain: 'Sales (B2B Wholesale & B2C Retail)',
       color: 'emerald',
       items: [
-        'Sales Orders',
-        'Sales Invoices',
-        'Quotations',
+        'B2B Sales Orders',
+        'B2B Sales Invoices',
+        'B2C Retail Invoices',
+        'D2C Online Sales',
+        'Wholesale Quotations',
         'Customer Directory',
         'Sales Returns',
         'Repeat Orders',
@@ -3169,12 +3171,32 @@ export default function PurchaseSettings() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Sales Department', code: p.code || 'SALES' }));
-                      handleApplyPresetTemplate(['Sales Orders', 'Sales Invoices', 'Quotations', 'Customer Directory', 'Sales Returns']);
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'B2B Wholesale Sales', code: p.code || 'B2B' }));
+                      handleApplyPresetTemplate(['B2B Sales Orders', 'B2B Sales Invoices', 'Wholesale Quotations', 'Customer Directory', 'Sales Returns']);
                     }}
                     className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
                   >
-                    + Sales (Orders, Invoices, Quotations)
+                    + B2B Wholesale Sales (Orders, Invoices, Quotations)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'B2C & Retail Sales', code: p.code || 'B2C' }));
+                      handleApplyPresetTemplate(['B2C Retail Invoices', 'D2C Online Sales', 'Customer Directory', 'Sales Returns']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 transition cursor-pointer"
+                  >
+                    + B2C & Retail Sales (Counter Invoices, D2C)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deptFormData.name) setDeptFormData((p) => ({ ...p, name: 'Sales Department', code: p.code || 'SALES' }));
+                      handleApplyPresetTemplate(['B2B Sales Orders', 'B2B Sales Invoices', 'B2C Retail Invoices', 'D2C Online Sales', 'Wholesale Quotations', 'Customer Directory']);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200 transition cursor-pointer"
+                  >
+                    + All Sales (B2B + B2C + D2C)
                   </button>
                   <button
                     type="button"
