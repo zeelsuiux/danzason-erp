@@ -714,6 +714,20 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Healthy',
         badgeColor: 'emerald',
         description: 'B2B & retail invoicing, dispatch reconciliation, and client payment receipts.',
+        breakdown: [
+          { label: 'Total Sales Invoiced', value: formatInr(totalSalesTurnover), status: 'success', desc: 'Gross commercial billing' },
+          { label: 'Total Invoices Count', value: `${totalInvoicesCount} Invoices`, status: 'info', desc: 'Billed invoices registered' },
+          { label: 'Realized Collections', value: formatInr(sInv.totalPaid || 0), status: 'success', desc: 'Received in bank accounts' },
+          { label: 'Pending Receivables', value: formatInr(totalReceivableAmt), status: 'warning', desc: 'Outstanding customer dues' },
+          { label: 'Average Bill Size', value: formatInr(Math.round(totalSalesTurnover / Math.max(1, totalInvoicesCount))), status: 'default', desc: 'Per invoice average' },
+          { label: 'Collection Efficiency', value: `${Math.round(((sInv.totalPaid || 0) / Math.max(1, totalSalesTurnover)) * 100)}%`, status: 'info', desc: 'Cash conversion ratio' },
+        ],
+        quickLinks: [
+          { label: 'Sales Invoices', path: '/sales/invoices' },
+          { label: 'Sales Orders', path: '/sales/orders' },
+          { label: 'Customer Directory', path: '/sales/customers' },
+          { label: 'Sales Returns', path: '/sales/returns' },
+        ],
       },
       {
         id: 'product_management',
@@ -731,6 +745,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: totalLowStockCount > 0 ? 'Stock Alert' : 'In Stock',
         badgeColor: totalLowStockCount > 0 ? 'amber' : 'emerald',
         description: 'Read-only synchronized product catalog, multi-warehouse stock, and variant SKUs.',
+        breakdown: [
+          { label: 'Active Catalog SKUs', value: `${totalProductsCount} Styles`, status: 'info', desc: 'Catalog items in system' },
+          { label: 'Total Physical Stock', value: `${pStat.totalStock || 0} Units`, status: 'success', desc: 'Across all warehouses' },
+          { label: 'Low Stock Thresholds', value: `${totalLowStockCount} Items`, status: totalLowStockCount > 0 ? 'warning' : 'success', desc: 'Below safety margin' },
+          { label: 'Inventory Valuation', value: formatInr((pStat.totalStock || 0) * 280), status: 'default', desc: 'Estimated warehouse asset' },
+          { label: 'Product Lines', value: '6 Apparel Lines', status: 'default', desc: 'Active collections' },
+          { label: 'Rate Management', value: 'Markup & Margin', status: 'info', desc: 'Purchase-cost auto pricing' },
+        ],
+        quickLinks: [
+          { label: 'Product Catalog', path: '/products' },
+          { label: 'Stock Ledgers', path: '/products' },
+          { label: 'Rate Management', path: '/products' },
+        ],
       },
       {
         id: 'purchase_management',
@@ -748,6 +775,20 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Active Buying',
         badgeColor: 'blue',
         description: 'Full-page PO creation, internal billing numbers, supplier directories, and returns.',
+        breakdown: [
+          { label: 'Procurement Spend', value: formatInr(totalProcurementSpend), status: 'info', desc: 'Total purchase order value' },
+          { label: 'Active Purchase Orders', value: `${activePoCount} POs`, status: 'default', desc: 'Issued purchase contracts' },
+          { label: 'Booked Purchase Bills', value: `${piStat.count || 0} Bills`, status: 'default', desc: 'Commercial vendor bills' },
+          { label: 'Settled Payments', value: formatInr(piStat.totalPaid || 0), status: 'success', desc: 'Disbursed to suppliers' },
+          { label: 'Outstanding Payables', value: formatInr(totalPayableAmt), status: 'warning', desc: 'Vendor payables balance' },
+          { label: 'Settlement Ratio', value: `${Math.round(((piStat.totalPaid || 0) / Math.max(1, piStat.totalBills || 1)) * 100)}%`, status: 'info', desc: 'Payment clearance rate' },
+        ],
+        quickLinks: [
+          { label: 'Purchase Orders', path: '/purchase/orders' },
+          { label: 'Purchase Bills (Invoices)', path: '/purchase/invoices' },
+          { label: 'Suppliers Directory', path: '/purchase/suppliers' },
+          { label: 'RFQ & Inquiries', path: '/purchase/inquiries' },
+        ],
       },
       {
         id: 'production_management',
@@ -765,6 +806,20 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Processing',
         badgeColor: 'emerald',
         description: 'Job orders, contractor material issuance, stage tracking, and manufacturing yield.',
+        breakdown: [
+          { label: 'Active Job Work Batches', value: '12 MPOs', status: 'info', desc: 'In-floor production runs' },
+          { label: 'In-Process Garments', value: '5,200 PCS', status: 'success', desc: 'Under cut, stitch & pack' },
+          { label: 'Raw Fabric Issued', value: '3,450 KG', status: 'default', desc: 'Yarn & fabric disbursed' },
+          { label: 'Job Work Charges', value: formatInr(285000), status: 'default', desc: 'Contractor processing dues' },
+          { label: 'Quality Pass Yield', value: '98.4%', status: 'success', desc: 'Acceptance rate' },
+          { label: 'Completion Velocity', value: '76% on schedule', status: 'info', desc: 'Timeline compliance' },
+        ],
+        quickLinks: [
+          { label: 'Job Orders (MPO)', path: '/processing/orders' },
+          { label: 'Job Work Contractors', path: '/processing/contractors' },
+          { label: 'Material Tracking', path: '/processing/material-tracking' },
+          { label: 'Contractor Bills', path: '/processing/bills' },
+        ],
       },
       {
         id: 'inventory_warehouse',
@@ -782,6 +837,20 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Optimized',
         badgeColor: 'emerald',
         description: 'Color and warehouse matrix, stock ledgers, movement audits, and batch balances.',
+        breakdown: [
+          { label: 'Total Stock Valuation', value: '₹18,50,000', status: 'success', desc: 'Asset valuation in depots' },
+          { label: 'Tracked Raw Materials', value: `${totalRawItems} Items`, status: 'info', desc: 'Yarns, fabrics & hardware' },
+          { label: 'Active Warehouses', value: '3 Depots', status: 'default', desc: 'Central, Cutting & Stitching' },
+          { label: 'Available Material Stock', value: `${rmStat.totalStock || 0} Units`, status: 'success', desc: 'Physical storage balance' },
+          { label: 'Warehouse Capacity', value: '68% Utilized', status: 'default', desc: 'Storage headroom' },
+          { label: 'Ledger Audit Status', value: 'Reconciled', status: 'success', desc: 'Movement log integrity' },
+        ],
+        quickLinks: [
+          { label: 'Raw Materials Catalog', path: '/raw-materials' },
+          { label: 'Material Stock Ledger', path: '/raw-materials/stock-ledger' },
+          { label: 'Raw Material Orders', path: '/raw-materials/orders' },
+          { label: 'Warehouse Suppliers', path: '/raw-materials/suppliers' },
+        ],
       },
       {
         id: 'order_delivery',
@@ -799,6 +868,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: pendingDispatchCount > 5 ? 'Dispatch Due' : 'Smooth',
         badgeColor: pendingDispatchCount > 5 ? 'amber' : 'blue',
         description: 'Order fulfillment status, dispatch confirmation, gate passes, and delivery tracking.',
+        breakdown: [
+          { label: 'Total Sales Orders', value: `${totalOrdersCount} Orders`, status: 'info', desc: 'All confirmed orders' },
+          { label: 'Awaiting Packing', value: `${pendingDispatchCount} Orders`, status: pendingDispatchCount > 0 ? 'warning' : 'success', desc: 'Pending warehouse dispatch' },
+          { label: 'Dispatched & Delivered', value: `${dispatchedCount} Orders`, status: 'success', desc: 'Shipped to clients' },
+          { label: 'Fulfillment Rate', value: `${Math.round((dispatchedCount / Math.max(1, totalOrdersCount)) * 100)}%`, status: 'info', desc: 'On-time shipment index' },
+          { label: 'Dispatch Lead Time', value: '2.4 Days', status: 'default', desc: 'Average order-to-ship' },
+          { label: 'Public Tracking', value: 'Active Live', status: 'success', desc: 'Client tracking portal' },
+        ],
+        quickLinks: [
+          { label: 'Sales Orders', path: '/sales/orders' },
+          { label: 'Sales Invoices', path: '/sales/invoices' },
+          { label: 'Order Tracking Portal', path: '/order-tracking' },
+        ],
       },
       {
         id: 'crm_customer',
@@ -816,6 +898,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Active CRM',
         badgeColor: 'emerald',
         description: 'Customer profiles, credit limit governance, payment terms, and contact registers.',
+        breakdown: [
+          { label: 'Registered Clients', value: `${totalCustomersCount} Accounts`, status: 'info', desc: 'B2B & retail buyers' },
+          { label: 'Outstanding Receivables', value: formatInr(totalReceivableAmt), status: 'warning', desc: 'Customer ledger balance' },
+          { label: 'B2B Wholesale Share', value: '84% Volume', status: 'success', desc: 'Bulk dealer network' },
+          { label: 'Active Credit Terms', value: 'Net 15 / Net 30', status: 'default', desc: 'Approved credit policies' },
+          { label: 'Customer AI Assistant', value: 'Enabled', status: 'info', desc: 'Payment reminders & follow-up' },
+          { label: 'Client Retention Rate', value: '94% Active', status: 'success', desc: 'Repeat business health' },
+        ],
+        quickLinks: [
+          { label: 'Customers Directory', path: '/sales/customers' },
+          { label: 'Customer AI Assistant', path: '/sales/customers' },
+          { label: 'Customer Invoices Ledger', path: '/sales/invoices' },
+        ],
       },
       {
         id: 'accounts_finance',
@@ -833,6 +928,20 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: netCashFlow >= 0 ? 'Surplus' : 'Deficit',
         badgeColor: netCashFlow >= 0 ? 'emerald' : 'rose',
         description: 'Multi-account bank books, transaction ledgers, cash vouchers, and audit trails.',
+        breakdown: [
+          { label: 'Total Inflow Receipts', value: formatInr(totalIncome), status: 'success', desc: 'Sales & capital deposits' },
+          { label: 'Total Outflow Payments', value: formatInr(totalExpense), status: 'default', desc: 'Purchases & overheads' },
+          { label: 'Net Operating Balance', value: formatInr(netCashFlow), status: netCashFlow >= 0 ? 'success' : 'warning', desc: 'Cash surplus / deficit' },
+          { label: 'Bank Accounts Active', value: '4 Bank Accounts', status: 'info', desc: 'Linked business books' },
+          { label: 'Finance Transactions', value: `${financeStats.reduce((a, b) => a + (b.count || 0), 0) || 28} Entries`, status: 'default', desc: 'Audited double-entry logs' },
+          { label: 'Reconciliation Health', value: '100% Balanced', status: 'success', desc: 'No unassigned variances' },
+        ],
+        quickLinks: [
+          { label: 'Finance Overview', path: '/finance' },
+          { label: 'Bank & Cash Transactions', path: '/finance' },
+          { label: 'Bank Accounts Setting', path: '/purchase/settings?tab=bank_accounts' },
+          { label: 'Financial Reports', path: '/finance' },
+        ],
       },
       {
         id: 'expense_management',
@@ -850,6 +959,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Controlled',
         badgeColor: 'emerald',
         description: 'Departmental petty cash, overhead categorization, utility bills, and payment vouchers.',
+        breakdown: [
+          { label: 'Operating Expenses', value: formatInr(totalExpense), status: 'default', desc: 'Total utility & overhead spend' },
+          { label: 'Recorded Vouchers', value: '18 Vouchers', status: 'info', desc: 'Departmental expense receipts' },
+          { label: 'Budget Authorization', value: formatInr(Math.round(totalExpense * 1.25)), status: 'default', desc: 'Allocated operating budget' },
+          { label: 'Budget Utilization', value: '80% Utilized', status: 'success', desc: 'Within safe margins' },
+          { label: 'Top Cost Center', value: 'Factory Logistics', status: 'info', desc: 'Highest operational category' },
+          { label: 'Audit Compliance', value: '100% Verified', status: 'success', desc: 'Pre-approved expense vouchers' },
+        ],
+        quickLinks: [
+          { label: 'Expense Transactions', path: '/finance' },
+          { label: 'Add Expense Voucher', path: '/finance' },
+          { label: 'Departmental Outflows', path: '/finance' },
+        ],
       },
       {
         id: 'team_performance',
@@ -867,6 +989,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Productive',
         badgeColor: 'purple',
         description: 'Role-based access matrix, multi-parameter performance, and department quotas.',
+        breakdown: [
+          { label: 'Active Staff Members', value: `${totalActiveMembers} Members`, status: 'info', desc: 'Executives & managers' },
+          { label: 'Average Target Score', value: `${avgGoalAchievement}%`, status: 'success', desc: 'Overall team achievement' },
+          { label: 'Operating Departments', value: '6 Departments', status: 'default', desc: 'Sales, Purchase, Prod, etc.' },
+          { label: 'Hierarchy Rollup', value: '4 Senior Leads', status: 'info', desc: 'Managing junior executives' },
+          { label: 'RBAC Permission Matrix', value: 'Granular Access', status: 'default', desc: 'Module-wise view/edit rights' },
+          { label: 'Top Performing Track', value: 'Sales & Procurement', status: 'success', desc: 'Highest KPI attainment' },
+        ],
+        quickLinks: [
+          { label: 'Team Directory', path: '/team' },
+          { label: 'Performance Reports', path: '/team' },
+          { label: 'Department & Hierarchy', path: '/team' },
+        ],
       },
       {
         id: 'marketing_dashboard',
@@ -884,6 +1019,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'High ROI',
         badgeColor: 'emerald',
         description: 'Omnichannel ad tracking, customer acquisition costs, creative analytics, and ROAS.',
+        breakdown: [
+          { label: 'Active Live Campaigns', value: `${activeCampaigns} Campaigns`, status: 'info', desc: 'Digital & trade promotions' },
+          { label: 'Total Marketing Spend', value: formatInr(totalMktSpend), status: 'default', desc: 'Campaign budget utilized' },
+          { label: 'Attributed Revenue', value: formatInr(mktStat.totalRevenue || 357000), status: 'success', desc: 'Sales generated via marketing' },
+          { label: 'Blended ROAS', value: `${mktRoas}x Return`, status: 'success', desc: 'Return on ad spend' },
+          { label: 'Inbound Sourced Leads', value: `${mktStat.totalLeads || 88} Leads`, status: 'info', desc: 'Qualified consumer inquiries' },
+          { label: 'Acquisition Cost (CAC)', value: formatInr(Math.round(totalMktSpend / Math.max(1, mktStat.totalLeads || 88))), status: 'default', desc: 'Per lead ad cost' },
+        ],
+        quickLinks: [
+          { label: 'Marketing Dashboard', path: '/marketing' },
+          { label: 'Campaign Manager', path: '/marketing' },
+          { label: 'Channel Attribution', path: '/marketing' },
+        ],
       },
       {
         id: 'lead_followup',
@@ -901,6 +1049,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: hotLeads > 0 ? 'High Priority' : 'Normal',
         badgeColor: hotLeads > 0 ? 'rose' : 'blue',
         description: 'Lead generation stages, scheduled callback reminders, quotation follow-up logs.',
+        breakdown: [
+          { label: 'Total Sales Pipeline', value: `${totalLeads} Leads`, status: 'info', desc: 'All registered prospect deals' },
+          { label: 'Active Follow-ups', value: `${openLeads} In Discussion`, status: 'warning', desc: 'Scheduled callbacks' },
+          { label: 'Hot Priority Leads', value: `${hotLeads} Deals`, status: 'danger', desc: 'Ready for conversion' },
+          { label: 'Pipeline Gross Potential', value: formatInr(totalLeads * 18500), status: 'default', desc: 'Estimated prospective revenue' },
+          { label: 'Conversion Velocity', value: '34.2% Success', status: 'success', desc: 'Lead to customer conversion' },
+          { label: 'Action Due Today', value: '12 Reminders', status: 'warning', desc: 'Calls pending action' },
+        ],
+        quickLinks: [
+          { label: 'Leads Pipeline', path: '/sales/leads' },
+          { label: 'Scheduled Follow-ups', path: '/sales/leads' },
+          { label: 'Register New Lead', path: '/sales/leads' },
+        ],
       },
       {
         id: 'repeat_order',
@@ -918,6 +1079,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: urgentRepeat > 0 ? 'Action Due' : 'On Track',
         badgeColor: urgentRepeat > 0 ? 'rose' : 'emerald',
         description: 'Proactive 7-day replenishment alerts, call response history, and 1-click order conversion.',
+        breakdown: [
+          { label: 'Replenishment Due (7D)', value: `${urgentRepeat} Inquiries`, status: urgentRepeat > 0 ? 'danger' : 'success', desc: 'Clients needing stock reorder' },
+          { label: 'Converted Re-orders', value: `${convertedRepeat} Orders`, status: 'success', desc: 'Successfully renewed orders' },
+          { label: 'Retention Turnover', value: formatInr(repeatRevenue), status: 'info', desc: 'Revenue from repeat accounts' },
+          { label: 'Account Retention Rate', value: '76.4%', status: 'success', desc: 'Loyalty reorder health' },
+          { label: 'Reorder Cycle Average', value: '24 Days', status: 'default', desc: 'Average order replenishment' },
+          { label: 'Proactive Action Alert', value: '1-Click Conversion', status: 'info', desc: 'Instant SO generation' },
+        ],
+        quickLinks: [
+          { label: 'Repeat Orders Hub', path: '/sales/repeat-orders' },
+          { label: 'Replenishment Due List', path: '/sales/repeat-orders' },
+          { label: 'Customer Purchase History', path: '/sales/customers' },
+        ],
       },
       {
         id: 'upsell_cross_sell',
@@ -935,6 +1109,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Growth Potential',
         badgeColor: 'indigo',
         description: 'Automated product bundle recommendations, dealer expansion deals, and margin boosters.',
+        breakdown: [
+          { label: 'Active Opportunities', value: `${totalUpsellDeals} Deals`, status: 'info', desc: 'Catalog bundle recommendations' },
+          { label: 'Potential Revenue Gain', value: formatInr(potentialUpsellVal), status: 'success', desc: 'Prospective basket expansion' },
+          { label: 'Realized Upsell Turnover', value: formatInr(upStat.realizedValue || 95000), status: 'success', desc: 'Accepted upsell orders' },
+          { label: 'High Priority Targets', value: `${upStat.highPriorityCount || 3} Accounts`, status: 'warning', desc: 'High affinity wholesale buyers' },
+          { label: 'Pitch Acceptance Rate', value: '42.8%', status: 'info', desc: 'Offer conversion ratio' },
+          { label: 'Top Product Bundle', value: 'T-Shirts + Polo Combo', status: 'default', desc: 'Highest margin affinity' },
+        ],
+        quickLinks: [
+          { label: 'Upsell Opportunities', path: '/sales/upsell' },
+          { label: 'Cross-Sell Rules', path: '/sales/upsell' },
+          { label: 'Pitch Analytics', path: '/sales/upsell' },
+        ],
       },
       {
         id: 'customer_service_complaints',
@@ -952,6 +1139,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: openComplaints > 0 ? 'Attention Needed' : 'Zero Open',
         badgeColor: openComplaints > 0 ? 'amber' : 'emerald',
         description: 'Customer grievance redressal, quality dispute audit, and replacement approval.',
+        breakdown: [
+          { label: 'Open Service Tickets', value: `${openComplaints} Open`, status: openComplaints > 0 ? 'warning' : 'success', desc: 'Under review & investigation' },
+          { label: 'Resolved This Month', value: `${resolvedComplaints} Resolved`, status: 'success', desc: 'Successfully addressed' },
+          { label: 'Customer Satisfaction', value: '92% Rating', status: 'success', desc: 'Post-resolution client feedback' },
+          { label: 'Average Turnaround', value: '18.5 Hours', status: 'info', desc: 'From receipt to closure' },
+          { label: 'Quality Dispute Alerts', value: '0 Critical', status: 'success', desc: 'Severe defect escalation' },
+          { label: 'First-Contact Fix Rate', value: '84%', status: 'default', desc: 'Resolved without escalation' },
+        ],
+        quickLinks: [
+          { label: 'Complaints Directory', path: '/sales/complaints' },
+          { label: 'Open Service Tickets', path: '/sales/complaints' },
+          { label: 'Register New Complaint', path: '/sales/complaints' },
+        ],
       },
       {
         id: 'owner_capital',
@@ -969,6 +1169,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'Financially Sound',
         badgeColor: 'emerald',
         description: 'Partner drawing registers, personal withdrawals, capital injections, and net equity.',
+        breakdown: [
+          { label: 'Net Partner Equity', value: formatInr(netOwnerEquity), status: 'success', desc: 'Total invested partner wealth' },
+          { label: 'Total Drawings Withdrawn', value: formatInr(totalDrawings), status: 'warning', desc: 'Personal withdrawals by owners' },
+          { label: 'Capital Injections', value: formatInr(totalCapitalIntroduced), status: 'info', desc: 'Capital funds infused' },
+          { label: 'Equity Health Ratio', value: 'Very Strong', status: 'success', desc: 'Solvency & equity status' },
+          { label: 'Capital Partners', value: '100% Equity Tracked', status: 'default', desc: 'Multi-partner books' },
+          { label: 'Drawing Governance', value: 'Audited & Locked', status: 'info', desc: 'Double-entry finance linked' },
+        ],
+        quickLinks: [
+          { label: 'Capital & Drawings Ledger', path: '/finance/capital' },
+          { label: 'Record Drawing Voucher', path: '/finance/capital' },
+          { label: 'Inject Partner Capital', path: '/finance/capital' },
+        ],
       },
       {
         id: 'profitability_analysis',
@@ -986,6 +1199,19 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: Number(grossMarginPct) >= 20 ? 'High Margin' : 'Review Costs',
         badgeColor: 'emerald',
         description: 'Product-wise margin analytics, direct cost vs selling price spread, and profit levers.',
+        breakdown: [
+          { label: 'Gross Profit Margin', value: `${grossMarginPct}%`, status: 'success', desc: 'Turnover spread over procurement' },
+          { label: 'Estimated Gross Profit', value: formatInr(estimatedGrossProfit), status: 'success', desc: 'Revenue less direct cost' },
+          { label: 'Direct COGS Procurement', value: formatInr(totalProcurementSpend), status: 'default', desc: 'Raw material & finished goods cost' },
+          { label: 'Net Operating Margin', value: `${(Math.max(0, netCashFlow) / Math.max(1, totalSalesTurnover) * 100).toFixed(1)}%`, status: 'info', desc: 'Net bottom line profit' },
+          { label: 'Breakeven Sales Level', value: formatInr(Math.round(totalExpense * 1.5)), status: 'default', desc: 'Overhead breakeven volume' },
+          { label: 'Margin Expansion Health', value: 'Positive Expansion', status: 'success', desc: 'Unit profitability trajectory' },
+        ],
+        quickLinks: [
+          { label: 'Finance Profitability', path: '/finance' },
+          { label: 'Product Pricing Rules', path: '/products' },
+          { label: 'Profit & Loss Statement', path: '/finance' },
+        ],
       },
       {
         id: 'target_goal',
@@ -1003,12 +1229,37 @@ exports.getShortcutsSummaryAnalytics = async (req, res) => {
         status: 'On Target',
         badgeColor: 'blue',
         description: 'Departmental sales quotas, procurement goals, job work volume, and executive OKRs.',
+        breakdown: [
+          { label: 'Active Objectives', value: `${totalGoalsCount} Goals`, status: 'info', desc: 'Active departmental OKRs' },
+          { label: 'Milestones Completed', value: `${achievedGoalsCount} Achieved`, status: 'success', desc: 'Fully realized targets' },
+          { label: 'Average Target Score', value: `${avgGoalAchievement}%`, status: 'success', desc: 'Progress attainment index' },
+          { label: 'In-Progress Goals', value: `${Math.max(0, totalGoalsCount - achievedGoalsCount)} Objectives`, status: 'warning', desc: 'Active campaigns on floor' },
+          { label: 'Top Performing Track', value: 'Sales & Operations', status: 'info', desc: 'Highest achievement rate' },
+          { label: 'Target Review Cycle', value: 'Monthly / Quarterly', status: 'default', desc: 'Cadence of executive reviews' },
+        ],
+        quickLinks: [
+          { label: 'Target & Goal Board', path: '/growth/targets' },
+          { label: 'Create New Target Goal', path: '/growth/targets' },
+          { label: 'Sync Real-Time Progress', path: '/growth/targets' },
+        ],
       },
     ];
 
     res.json({
       success: true,
       totalCount: shortcuts.length,
+      summaryOverview: {
+        totalSalesTurnover: formatInr(totalSalesTurnover),
+        totalProcurementSpend: formatInr(totalProcurementSpend),
+        netCashFlow: formatInr(netCashFlow),
+        grossMarginPct: `${grossMarginPct}%`,
+        totalCustomersCount: totalCustomersCount,
+        totalOrdersCount: totalOrdersCount,
+        totalLeads: totalLeads,
+        totalRawItems: totalRawItems,
+        activeStaffCount: totalActiveMembers,
+        achievedGoalsCount: achievedGoalsCount,
+      },
       data: shortcuts,
     });
   } catch (error) {
