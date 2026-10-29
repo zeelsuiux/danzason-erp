@@ -337,22 +337,26 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
               <span>CEO Command Center</span>
             </NavLink>
 
-            {/* Direct Page Link to Module Shortcuts */}
+            {/* Direct Page Link to Dashboards */}
             <NavLink
-              to="/shortcuts"
+              to="/dashboards"
               onClick={() => {
                 if (window.innerWidth < 1024) onClose();
               }}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                  isActive
+              className={({ isActive }) => {
+                const isShortcutsActive =
+                  isActive ||
+                  location.pathname.startsWith('/dashboards') ||
+                  location.pathname.startsWith('/shortcuts');
+                return `flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isShortcutsActive
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-200 hover:text-white hover:bg-slate-800/70'
-                }`
-              }
+                }`;
+              }}
             >
               <LayoutGrid className="w-4 h-4 text-amber-400" />
-              <span>Module Shortcuts & Summary</span>
+              <span>Dashboards</span>
             </NavLink>
           </div>
 

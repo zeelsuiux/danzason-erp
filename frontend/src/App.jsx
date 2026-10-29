@@ -87,6 +87,7 @@ export default function App() {
           <Route path="dashboard" element={<CeoCommandCenter />} />
           <Route path="ceo-command-center" element={<CeoCommandCenter />} />
           <Route path="shortcuts" element={<ModuleShortcutsSummary />} />
+          <Route path="dashboards" element={<ModuleShortcutsSummary />} />
           <Route path="shortcuts-summary" element={<ModuleShortcutsSummary />} />
           <Route path="summary" element={<ModuleShortcutsSummary />} />
           <Route path="cockpit" element={<ModuleShortcutsSummary />} />
