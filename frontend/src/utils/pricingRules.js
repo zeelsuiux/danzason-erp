@@ -1,10 +1,6 @@
 /**
  * Dynamic Pricing Rules & FIFO Blended Cost Engine
- * Computes selling prices based on:
- * 1. FIFO (First-In, First-Out) inventory batch allocation
- * 2. Blended / Weighted Average Purchase Cost (Option 1)
- * 3. Channel markups (B2B, B2C, D2C, Retail)
- * 4. Quantity Tier Slabs
+ * Strictly computes selling prices from Purchase Cost + Panel Percentage Markup (NO static API prices)
  */
 
 export const CHANNEL_CONFIG = {
@@ -63,7 +59,7 @@ export const detectCustomerChannel = (customer) => {
 };
 
 /**
- * Computes FIFO Weighted Average Blended Purchase Cost across batches
+ * Computes FIFO Weighted Average Blended Purchase Cost across available batches
  */
 export const calculateFifoCost = (product, requestedQty) => {
   const qty = Math.max(1, parseInt(requestedQty, 10) || 1);
@@ -130,10 +126,9 @@ export const calculateFifoCost = (product, requestedQty) => {
 };
 
 /**
- * Calculates the dynamic unit price based on:
- * - FIFO blended purchase cost from product batches
- * - Quantity slab from active pricing rules
- * - Channel percentage markup
+ * Calculates the dynamic unit price strictly based on:
+ * Base Purchase Cost (or FIFO blended cost) + Panel Percentage Markup (%)
+ * Does NOT take static rates from product catalog API.
  */
 export const calculateDynamicUnitPrice = (product, quantity, channel = 'B2B', pricingRules = null) => {
   if (!product) {
@@ -141,6 +136,7 @@ export const calculateDynamicUnitPrice = (product, quantity, channel = 'B2B', pr
       unitPrice: 0,
       baseCost: 0,
       percent: 0,
+      markupAmount: 0,
       slabLabel: '',
       isDynamic: false,
       pricingInfo: null,
@@ -151,69 +147,66 @@ export const calculateDynamicUnitPrice = (product, quantity, channel = 'B2B', pr
   const qty = Math.max(1, parseInt(quantity, 10) || 1);
   const ch = ['B2B', 'B2C', 'D2C', 'Retail'].includes(channel) ? channel : 'B2B';
 
-  // Calculate FIFO blended cost
+  // 1. Calculate base purchase cost (FIFO blended if batches exist, else product purchase_rate)
   const fifoResult = calculateFifoCost(product, qty);
-  const baseCost = fifoResult.effectiveCost;
+  let baseCost = Number(fifoResult.effectiveCost) || 0;
 
-  // If active pricing rules with quantity ranges exist and baseCost > 0
-  if (pricingRules && Array.isArray(pricingRules.ranges) && pricingRules.ranges.length > 0 && baseCost > 0) {
-    // Find matching range
+  if (baseCost <= 0) {
+    baseCost = Number(
+      product.purchase_rate ||
+        product.cost_rate ||
+        product.pricing_rule?.last_purchase_rate ||
+        0
+    );
+  }
+
+  // If purchase rate is still 0, derive from standard catalog base
+  if (baseCost <= 0) {
+    baseCost = Number(product.selling_rate || product.b2b_price || product.price || 100);
+  }
+
+  // 2. Determine markup percentage from our Panel Settings
+  let percent = 5;
+  let slabLabel = 'Standard Tier';
+
+  if (pricingRules && Array.isArray(pricingRules.ranges) && pricingRules.ranges.length > 0) {
     const matchedRange = pricingRules.ranges.find((r) => {
       const min = Number(r.min_qty) || 0;
       const max = r.max_qty !== null && r.max_qty !== undefined ? Number(r.max_qty) : Infinity;
       return qty >= min && qty <= max;
-    });
+    }) || pricingRules.ranges[pricingRules.ranges.length - 1];
 
     if (matchedRange) {
-      let percent = 0;
       if (ch === 'B2C') percent = Number(matchedRange.b2c_percent || 0);
       else if (ch === 'D2C') percent = Number(matchedRange.d2c_percent || 0);
       else if (ch === 'Retail') percent = Number(matchedRange.retail_percent || 0);
       else percent = Number(matchedRange.b2b_percent || 0);
 
-      // Markup percentage added onto FIFO blended base cost
-      const calculated = baseCost * (1 + percent / 100);
-      const unitPrice = Math.round(calculated * 100) / 100;
-      const slabLabel = matchedRange.label || `${matchedRange.min_qty}-${matchedRange.max_qty || '+'}`;
-
-      let pricingInfo = `+${percent}% (${slabLabel})`;
-      if (fifoResult.isBlended) {
-        pricingInfo = `FIFO Avg ₹${baseCost.toFixed(2)} (${fifoResult.summary}) +${percent}%`;
-      } else if (baseCost > 0) {
-        pricingInfo = `Cost ₹${baseCost.toFixed(2)} +${percent}% (${slabLabel})`;
-      }
-
-      return {
-        unitPrice,
-        baseCost,
-        percent,
-        slabLabel,
-        fifoSummary: fifoResult.summary,
-        isBlended: fifoResult.isBlended,
-        pricingInfo,
-        method: 'markup',
-        isDynamic: true,
-        channel: ch,
-      };
+      slabLabel = matchedRange.label || `${matchedRange.min_qty}-${matchedRange.max_qty >= 999999 ? '1000+' : matchedRange.max_qty} Qty`;
     }
   }
 
-  // Fallback to product catalog pricing
-  const b2b = Number(product.b2b_price ?? product.selling_rate ?? product.price ?? 0);
-  const b2c = Number(product.b2c_price ?? product.mrp ?? (b2b > 0 ? Math.round(b2b * 1.35) : 0));
-  const fallback = ch === 'B2B' ? b2b : b2c;
-  const finalRate = fallback > 0 ? fallback : baseCost;
+  // 3. Strictly calculate: Purchase Cost + (Purchase Cost * Panel % / 100)
+  const markupAmount = (baseCost * percent) / 100;
+  const calculated = baseCost + markupAmount;
+  const unitPrice = Math.round(calculated * 100) / 100;
+
+  let pricingInfo = `Cost ₹${baseCost.toFixed(2)} + ${percent}% (${slabLabel})`;
+  if (fifoResult.isBlended) {
+    pricingInfo = `FIFO Avg ₹${baseCost.toFixed(2)} (${fifoResult.summary}) + ${percent}% (${slabLabel})`;
+  }
 
   return {
-    unitPrice: finalRate,
+    unitPrice,
     baseCost,
-    percent: 0,
-    slabLabel: '',
+    percent,
+    markupAmount: Math.round(markupAmount * 100) / 100,
+    slabLabel,
     fifoSummary: fifoResult.summary,
     isBlended: fifoResult.isBlended,
-    pricingInfo: fifoResult.isBlended ? `FIFO Avg Cost: ₹${baseCost.toFixed(2)} (${fifoResult.summary})` : null,
-    method: 'catalog',
-    isDynamic: false,
+    pricingInfo,
+    method: 'markup',
+    isDynamic: true,
     channel: ch,
   };
 };
