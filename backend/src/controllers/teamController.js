@@ -891,7 +891,10 @@ exports.updateTeamMember = async (req, res) => {
     if (level) member.level = level;
     if (reports_to !== undefined) member.reports_to = reports_to || null;
     if (role_name) member.role_name = role_name;
-    if (permissions) member.permissions = permissions;
+    if (permissions) {
+      member.permissions = permissions;
+      member.markModified('permissions');
+    }
     if (monthly_targets) member.monthly_targets = monthly_targets;
     if (status) member.status = status;
     if (notes !== undefined) member.notes = notes.trim();

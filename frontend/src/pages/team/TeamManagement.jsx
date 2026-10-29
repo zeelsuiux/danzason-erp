@@ -216,10 +216,18 @@ export default function TeamManagement() {
     loadMasters();
     if (members.length === 0) loadMembers();
 
+    const initialDept = masters.departments?.[0] || 'Sales & CRM';
+    const ops = getDepartmentOperations(initialDept);
+    const initPerms = {};
+    ops.forEach((op) => {
+      initPerms[op] = { view: true, add: true, edit: true, delete: false };
+    });
+
     setFormData({
       ...initialForm,
+      department: initialDept,
       role_name: 'Junior Sales Executive',
-      permissions: masters.roleTemplates['Junior Sales Executive'] || defaultPermissions,
+      permissions: initPerms,
     });
     setFormError('');
     setIsAddModalOpen(true);
@@ -229,16 +237,26 @@ export default function TeamManagement() {
     loadMasters();
     if (members.length === 0) loadMembers();
     setSelectedMember(member);
+
+    const memberDept = member.department || 'Sales & CRM';
+    const ops = getDepartmentOperations(memberDept);
+    const currentPerms = { ...(member.permissions || {}) };
+    ops.forEach((op) => {
+      if (!currentPerms[op]) {
+        currentPerms[op] = { view: true, add: false, edit: false, delete: false };
+      }
+    });
+
     setFormData({
       name: member.name || '',
       email: member.email || '',
       phone: member.phone || '',
-      department: member.department || 'Sales & CRM',
+      department: memberDept,
       designation: member.designation || '',
       level: member.level || 'junior',
       reports_to: member.reports_to?._id || member.reports_to || '',
       role_name: member.role_name || 'Custom',
-      permissions: member.permissions || defaultPermissions,
+      permissions: currentPerms,
       monthly_targets: {
         leads_target: member.monthly_targets?.leads_target || 20,
         revenue_target: member.monthly_targets?.revenue_target || 300000,
@@ -260,9 +278,19 @@ export default function TeamManagement() {
 
   const handleOpenPermissionsModal = (member) => {
     setSelectedMember(member);
+    const memberDept = member.department || 'Sales & CRM';
+    const ops = getDepartmentOperations(memberDept);
+    const currentPerms = { ...(member.permissions || {}) };
+    ops.forEach((op) => {
+      if (!currentPerms[op]) {
+        currentPerms[op] = { view: true, add: false, edit: false, delete: false };
+      }
+    });
+
     setFormData({
       ...formData,
-      permissions: JSON.parse(JSON.stringify(member.permissions || defaultPermissions)),
+      department: memberDept,
+      permissions: currentPerms,
       role_name: member.role_name || 'Custom',
     });
     setFormError('');
@@ -326,20 +354,135 @@ export default function TeamManagement() {
     }
   };
 
+  // Retrieve assigned operations list for a given department
+  const getDepartmentOperations = (deptName) => {
+    if (!deptName) return [];
+    const deptObj = (masters.departmentObjects || []).find(
+      (d) => d.name?.toLowerCase() === deptName?.toLowerCase()
+    );
+    if (deptObj && Array.isArray(deptObj.sub_modules) && deptObj.sub_modules.length > 0) {
+      return deptObj.sub_modules;
+    }
+    // Fallback: check DEFAULT_DEPARTMENTS by name match
+    const fallbackMap = {
+      'Sales & CRM': [
+        'B2B Sales Orders',
+        'B2B Sales Invoices',
+        'B2C Retail Invoices',
+        'D2C Online Sales',
+        'Wholesale Quotations',
+        'Customer Directory',
+        'Customer Leads',
+        'Scheduled Follow-ups',
+        'Sales Returns'
+      ],
+      'Procurement & Purchase': [
+        'Purchase Orders',
+        'Purchase Bills',
+        'Suppliers Directory',
+        'RFQ & Inquiries',
+        'Supplier Rejections'
+      ],
+      'Manufacturing & Job Work': [
+        'Job Orders (MPO)',
+        'Material Tracking',
+        'Job Bills',
+        'Job Work Contractors'
+      ],
+      'Finance & Accounts': [
+        'Bank & Cash Accounts',
+        'Inflow & Outflow',
+        'Expense Vouchers',
+        'Owner Capital & Drawings'
+      ],
+      'Inventory & Warehouse': [
+        'Product Inventory',
+        'Raw Materials',
+        'Stock Ledgers',
+        'Warehouses'
+      ],
+      'Management & Admin': [
+        'Team & Access',
+        'Roles & Permissions',
+        'Performance Reports',
+        'Company Settings'
+      ],
+    };
+    return fallbackMap[deptName] || [];
+  };
+
+  // Handle department change - switches available operations to the newly assigned department
+  const handleDepartmentChange = (newDept) => {
+    const ops = getDepartmentOperations(newDept);
+    const updatedPerms = { ...(formData.permissions || {}) };
+    ops.forEach((op) => {
+      if (!updatedPerms[op]) {
+        updatedPerms[op] = { view: true, add: false, edit: false, delete: false };
+      }
+    });
+
+    setFormData((prev) => ({
+      ...prev,
+      department: newDept,
+      permissions: updatedPerms,
+    }));
+  };
+
   // Toggle single permission checkbox
-  const handleTogglePermission = (moduleKey, actionKey) => {
+  const handleTogglePermission = (opName, actionKey) => {
     setFormData((prev) => {
-      const currentMod = prev.permissions[moduleKey] || { view: false, add: false, edit: false, delete: false };
+      const currentMod = prev.permissions?.[opName] || { view: false, add: false, edit: false, delete: false };
       return {
         ...prev,
         permissions: {
           ...prev.permissions,
-          [moduleKey]: {
+          [opName]: {
             ...currentMod,
             [actionKey]: !currentMod[actionKey],
           },
         },
       };
+    });
+  };
+
+  // Toggle all actions (View, Add, Edit, Delete) for a single operation row
+  const handleToggleRowAll = (opName) => {
+    setFormData((prev) => {
+      const current = prev.permissions?.[opName] || { view: false, add: false, edit: false, delete: false };
+      const allActive = current.view && current.add && current.edit && current.delete;
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          [opName]: {
+            view: !allActive,
+            add: !allActive,
+            edit: !allActive,
+            delete: !allActive,
+          },
+        },
+      };
+    });
+  };
+
+  // Bulk actions for all assigned operations of the member's department
+  const handleSetAllOperations = (mode, targetDept) => {
+    const dept = targetDept || formData.department || masters.departments?.[0] || 'Sales & CRM';
+    const ops = getDepartmentOperations(dept);
+    setFormData((prev) => {
+      const updated = { ...(prev.permissions || {}) };
+      ops.forEach((op) => {
+        if (mode === 'all') {
+          updated[op] = { view: true, add: true, edit: true, delete: true };
+        } else if (mode === 'standard') {
+          updated[op] = { view: true, add: true, edit: true, delete: false };
+        } else if (mode === 'view_only') {
+          updated[op] = { view: true, add: false, edit: false, delete: false };
+        } else if (mode === 'none') {
+          updated[op] = { view: false, add: false, edit: false, delete: false };
+        }
+      });
+      return { ...prev, permissions: updated };
     });
   };
 
@@ -2097,8 +2240,8 @@ export default function TeamManagement() {
               </div>
               <select
                 value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 outline-none focus:border-brand font-semibold text-slate-800"
+                onChange={(e) => handleDepartmentChange(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 outline-none focus:border-brand font-semibold text-slate-800 bg-white"
               >
                 {masters.departments.map((d) => (
                   <option key={d} value={d}>{d}</option>
@@ -2177,69 +2320,166 @@ export default function TeamManagement() {
             })()}
           </div>
 
-          {/* Role Template Selector */}
-          <div className="pt-3 border-t border-slate-200">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-slate-800">
-                Select Base Role Template (Auto-configure Permissions):
-              </label>
-              <span className="text-[11px] text-slate-500 font-medium">
-                Current Role: <strong>{formData.role_name}</strong>
-              </span>
-            </div>
+          {/* Department Assigned Operations & RBAC Access Matrix */}
+          <div className="pt-3 border-t border-slate-200 space-y-3">
+            {(() => {
+              const activeOps = getDepartmentOperations(formData.department);
 
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {Object.keys(masters.roleTemplates || {}).map((templateKey) => (
-                <button
-                  key={templateKey}
-                  type="button"
-                  onClick={() => handleApplyRoleTemplate(templateKey)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition ${
-                    formData.role_name === templateKey
-                      ? 'bg-brand text-white border-brand shadow-xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {templateKey}
-                </button>
-              ))}
-            </div>
+              return (
+                <div className="rounded-2xl border border-slate-200 overflow-hidden text-xs bg-white shadow-2xs">
+                  {/* Department Operations Header */}
+                  <div className="p-3 bg-gradient-to-r from-slate-50 via-slate-50 to-indigo-50/40 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span className="font-extrabold text-slate-900 text-xs">
+                          Assigned Operations Access Matrix
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          {formData.department}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Access is strictly restricted to operations assigned to <strong>{formData.department}</strong>.
+                      </p>
+                    </div>
 
-            {/* Granular Permission Grid */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden text-xs">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-2.5 px-3">ERP Module</th>
-                    <th className="py-2.5 px-3 text-center">View</th>
-                    <th className="py-2.5 px-3 text-center">Add</th>
-                    <th className="py-2.5 px-3 text-center">Edit</th>
-                    <th className="py-2.5 px-3 text-center">Delete</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {masters.modules.map((mod) => {
-                    const p = formData.permissions[mod.id] || { view: false, add: false, edit: false, delete: false };
+                    {/* Quick Preset Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('view_only')}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        title="Set all department operations to View Only"
+                      >
+                        View Only All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('standard')}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                        title="Set View + Add + Edit (No Delete)"
+                      >
+                        Standard (No Delete)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('all')}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                        title="Grant Full Access (View, Add, Edit, Delete)"
+                      >
+                        Full Access
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('none')}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                        title="Clear all access"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
 
-                    return (
-                      <tr key={mod.id} className="hover:bg-slate-50/60">
-                        <td className="py-2.5 px-3 font-semibold text-slate-800">{mod.label}</td>
-                        {['view', 'add', 'edit', 'delete'].map((action) => (
-                          <td key={action} className="py-2.5 px-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={!!p[action]}
-                              onChange={() => handleTogglePermission(mod.id, action)}
-                              className="w-4 h-4 rounded text-brand focus:ring-brand border-slate-300 cursor-pointer"
-                            />
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  {activeOps.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/80 text-slate-600 font-extrabold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                            <th className="py-2.5 px-3.5">Assigned Operation / Module</th>
+                            <th className="py-2.5 px-3 text-center text-blue-800 bg-blue-50/30 w-20">View</th>
+                            <th className="py-2.5 px-3 text-center text-emerald-800 bg-emerald-50/30 w-24">Create / Add</th>
+                            <th className="py-2.5 px-3 text-center text-amber-800 bg-amber-50/30 w-20">Edit</th>
+                            <th className="py-2.5 px-3 text-center text-rose-800 bg-rose-50/30 w-20">Delete</th>
+                            <th className="py-2.5 px-3 text-right w-16">Row</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white font-sans">
+                          {activeOps.map((opName) => {
+                            const p = formData.permissions?.[opName] || { view: false, add: false, edit: false, delete: false };
+                            const allActive = p.view && p.add && p.edit && p.delete;
+
+                            return (
+                              <tr key={opName} className="hover:bg-slate-50/80 transition">
+                                <td className="py-2 px-3.5 font-bold text-slate-800">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                    <span>{opName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3 text-center bg-blue-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.view}
+                                    onChange={() => handleTogglePermission(opName, 'view')}
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center bg-emerald-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.add}
+                                    onChange={() => handleTogglePermission(opName, 'add')}
+                                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center bg-amber-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.edit}
+                                    onChange={() => handleTogglePermission(opName, 'edit')}
+                                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center bg-rose-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.delete}
+                                    onChange={() => handleTogglePermission(opName, 'delete')}
+                                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleRowAll(opName)}
+                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition cursor-pointer ${
+                                      allActive
+                                        ? 'text-rose-600 hover:bg-rose-50'
+                                        : 'text-emerald-700 hover:bg-emerald-50'
+                                    }`}
+                                    title={allActive ? 'Clear row permissions' : 'Enable all for this row'}
+                                  >
+                                    {allActive ? 'None' : 'All'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-amber-50 border-t border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <strong>No specific operations configured for {formData.department}.</strong>
+                        <p className="text-[11px] text-amber-700 mt-0.5">
+                          Please configure the assigned operations list for this department in Settings &gt; Departments.
+                        </p>
+                      </div>
+                      <a
+                        href="/purchase/settings?tab=departments"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition shrink-0"
+                      >
+                        Manage in Settings
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Department Monthly Performance Targets */}
@@ -2380,61 +2620,167 @@ export default function TeamManagement() {
             {getLevelBadge(selectedMember?.level)}
           </div>
 
-          {/* Role Templates selector */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Apply Pre-set Role Template:</label>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.keys(masters.roleTemplates || {}).map((templateKey) => (
-                <button
-                  key={templateKey}
-                  type="button"
-                  onClick={() => handleApplyRoleTemplate(templateKey)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
-                    formData.role_name === templateKey
-                      ? 'bg-brand text-white border-brand'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {templateKey}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Department Assigned Operations & RBAC Access Matrix */}
+          <div className="space-y-3">
+            {(() => {
+              const activeDept = selectedMember?.department || formData.department;
+              const activeOps = getDepartmentOperations(activeDept);
 
-          {/* Granular Permission Table */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden text-xs">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="py-2.5 px-3">Module</th>
-                  <th className="py-2.5 px-3 text-center">View</th>
-                  <th className="py-2.5 px-3 text-center">Add</th>
-                  <th className="py-2.5 px-3 text-center">Edit</th>
-                  <th className="py-2.5 px-3 text-center">Delete</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {masters.modules.map((mod) => {
-                  const p = formData.permissions[mod.id] || { view: false, add: false, edit: false, delete: false };
+              return (
+                <div className="rounded-2xl border border-slate-200 overflow-hidden text-xs bg-white shadow-2xs">
+                  {/* Operations Header with Quick Presets */}
+                  <div className="p-3 bg-gradient-to-r from-slate-50 via-slate-50 to-indigo-50/40 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span className="font-extrabold text-slate-900 text-xs">
+                          Assigned Operations Access Matrix
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          {activeDept}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Configure View, Create/Add, Edit, and Delete access for operations assigned to <strong>{activeDept}</strong>.
+                      </p>
+                    </div>
 
-                  return (
-                    <tr key={mod.id} className="hover:bg-slate-50/60">
-                      <td className="py-2.5 px-3 font-semibold text-slate-800">{mod.label}</td>
-                      {['view', 'add', 'edit', 'delete'].map((action) => (
-                        <td key={action} className="py-2.5 px-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={!!p[action]}
-                            onChange={() => handleTogglePermission(mod.id, action)}
-                            className="w-4 h-4 rounded text-brand focus:ring-brand border-slate-300 cursor-pointer"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    {/* Quick Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('view_only', activeDept)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        title="Set all department operations to View Only"
+                      >
+                        View Only All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('standard', activeDept)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                        title="Set View + Add + Edit (No Delete)"
+                      >
+                        Standard (No Delete)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('all', activeDept)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                        title="Grant Full Access (View, Add, Edit, Delete)"
+                      >
+                        Full Access
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetAllOperations('none', activeDept)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                        title="Clear all access"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {activeOps.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/80 text-slate-600 font-extrabold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                            <th className="py-2.5 px-3.5">Assigned Operation / Module</th>
+                            <th className="py-2.5 px-3 text-center text-blue-800 bg-blue-50/30 w-20">View</th>
+                            <th className="py-2.5 px-3 text-center text-emerald-800 bg-emerald-50/30 w-24">Create / Add</th>
+                            <th className="py-2.5 px-3 text-center text-amber-800 bg-amber-50/30 w-20">Edit</th>
+                            <th className="py-2.5 px-3 text-center text-rose-800 bg-rose-50/30 w-20">Delete</th>
+                            <th className="py-2.5 px-3 text-right w-16">Row</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white font-sans">
+                          {activeOps.map((opName) => {
+                            const p = formData.permissions?.[opName] || { view: false, add: false, edit: false, delete: false };
+                            const allActive = p.view && p.add && p.edit && p.delete;
+
+                            return (
+                              <tr key={opName} className="hover:bg-slate-50/80 transition">
+                                <td className="py-2 px-3.5 font-bold text-slate-800">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                    <span>{opName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3 text-center bg-blue-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.view}
+                                    onChange={() => handleTogglePermission(opName, 'view')}
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center bg-emerald-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.add}
+                                    onChange={() => handleTogglePermission(opName, 'add')}
+                                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center bg-amber-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.edit}
+                                    onChange={() => handleTogglePermission(opName, 'edit')}
+                                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center bg-rose-50/15">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.delete}
+                                    onChange={() => handleTogglePermission(opName, 'delete')}
+                                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleRowAll(opName)}
+                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition cursor-pointer ${
+                                      allActive
+                                        ? 'text-rose-600 hover:bg-rose-50'
+                                        : 'text-emerald-700 hover:bg-emerald-50'
+                                    }`}
+                                    title={allActive ? 'Clear row permissions' : 'Enable all for this row'}
+                                  >
+                                    {allActive ? 'None' : 'All'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-amber-50 border-t border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <strong>No specific operations configured for {activeDept}.</strong>
+                        <p className="text-[11px] text-amber-700 mt-0.5">
+                          Please configure the assigned operations list for this department in Settings &gt; Departments.
+                        </p>
+                      </div>
+                      <a
+                        href="/purchase/settings?tab=departments"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 transition shrink-0"
+                      >
+                        Manage in Settings
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">

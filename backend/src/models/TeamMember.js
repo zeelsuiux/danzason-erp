@@ -66,15 +66,10 @@ const teamMemberSchema = new mongoose.Schema(
       default: 'Sales Executive',
       trim: true,
     },
-    // Granular Module-wise Permissions (View, Add, Edit, Delete)
+    // Granular Department Operation Permissions (View, Add, Edit, Delete)
     permissions: {
-      leads: { type: modulePermissionSchema, default: () => ({ view: true, add: true, edit: true, delete: false }) },
-      sales: { type: modulePermissionSchema, default: () => ({ view: true, add: true, edit: true, delete: false }) },
-      purchase: { type: modulePermissionSchema, default: () => ({ view: false, add: false, edit: false, delete: false }) },
-      job_work: { type: modulePermissionSchema, default: () => ({ view: false, add: false, edit: false, delete: false }) },
-      inventory: { type: modulePermissionSchema, default: () => ({ view: true, add: false, edit: false, delete: false }) },
-      finance: { type: modulePermissionSchema, default: () => ({ view: false, add: false, edit: false, delete: false }) },
-      team: { type: modulePermissionSchema, default: () => ({ view: false, add: false, edit: false, delete: false }) },
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({}),
     },
     // Monthly Targets for Multi-Parameter Performance Tracking
     monthly_targets: {
