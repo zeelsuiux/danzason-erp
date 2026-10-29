@@ -1215,8 +1215,8 @@ export default function ModuleShortcutsSummary() {
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>
                   {selectedModuleId === 'sales' && isSalesFiltered
-                    ? 'Filtered Turnover Total'
-                    : 'Primary Operational Figure'}
+                    ? 'Filtered Sales Total'
+                    : 'Live Total Value'}
                 </span>
               </p>
             </div>
@@ -1232,8 +1232,8 @@ export default function ModuleShortcutsSummary() {
                 <Activity className="w-3.5 h-3.5" />
                 <span>
                   {selectedModuleId === 'sales' && isSalesFiltered
-                    ? 'Filtered Invoices Billed'
-                    : 'Activity & Volume'}
+                    ? 'Filtered Invoices Count'
+                    : 'Total Count'}
                 </span>
               </p>
             </div>
@@ -1249,8 +1249,8 @@ export default function ModuleShortcutsSummary() {
                 <Sparkle className="w-3.5 h-3.5 text-amber-500" />
                 <span>
                   {selectedModuleId === 'sales' && isSalesFiltered
-                    ? 'Filtered Dues Pending'
-                    : 'Key Performance Indicator'}
+                    ? 'Filtered Customer Dues'
+                    : 'Key Metric'}
                 </span>
               </p>
             </div>
@@ -1454,18 +1454,18 @@ export default function ModuleShortcutsSummary() {
           {/* TOP EXECUTIVE SUMMARY STRIP                                    */}
           {/* ============================================================== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. Total Turnover */}
+            {/* 1. Total Sales */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Total Turnover
+                  Total Sales
                 </span>
                 <p className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-1">
                   {summaryOverview?.totalSalesTurnover || '₹1,74,755'}
                 </p>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 mt-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Gross Billed Sales</span>
+                  <span>All Invoices Billed</span>
                 </span>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
@@ -1473,18 +1473,18 @@ export default function ModuleShortcutsSummary() {
               </div>
             </div>
 
-            {/* 2. Procurement Spend */}
+            {/* 2. Total Purchases */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Procurement Spend
+                  Total Purchases
                 </span>
                 <p className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-1">
                   {summaryOverview?.totalProcurementSpend || '₹21,000'}
                 </p>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 mt-1">
                   <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>PO & Vendor Buying</span>
+                  <span>Supplier Purchase Bills</span>
                 </span>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
@@ -1492,18 +1492,18 @@ export default function ModuleShortcutsSummary() {
               </div>
             </div>
 
-            {/* 3. Net Operating Cash Flow */}
+            {/* 3. Cash & Bank Balance */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Net Operating Cash
+                  Cash & Bank Balance
                 </span>
                 <p className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-1">
                   {summaryOverview?.netCashFlow || '₹4,40,000'}
                 </p>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 mt-1">
                   <WalletCards className="w-3.5 h-3.5" />
-                  <span>Bank Liquidity Surplus</span>
+                  <span>Available Bank Funds</span>
                 </span>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
@@ -1511,18 +1511,18 @@ export default function ModuleShortcutsSummary() {
               </div>
             </div>
 
-            {/* 4. Commercial Pipeline */}
+            {/* 4. Customers & Leads */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Commercial Pipeline
+                  Customers & Leads
                 </span>
                 <p className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-1">
                   {summaryOverview ? `${summaryOverview.totalCustomersCount} Clients • ${summaryOverview.totalLeads} Leads` : '4 Clients • 5 Leads'}
                 </p>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 mt-1">
                   <Users className="w-3.5 h-3.5" />
-                  <span>Active Client Accounts</span>
+                  <span>Active Verified Customers</span>
                 </span>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">

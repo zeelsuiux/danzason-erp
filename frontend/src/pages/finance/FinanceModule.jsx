@@ -1575,7 +1575,7 @@ export default function FinanceModule() {
                 {/* 1. Gross Revenue */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Gross Turnover</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Gross Sales</span>
                     <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
                       <ShoppingBag className="w-4 h-4" />
                     </span>
@@ -2018,7 +2018,7 @@ export default function FinanceModule() {
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                   <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <h4 className="font-bold text-slate-900 text-sm">Month-over-Month Profitability Timeline</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">Historical trend of Gross Turnover, COGS, Overhead OPEX, and Net Profit.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Monthly history of Gross Sales, Material Costs, Business Expenses, and Net Profit.</p>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -2027,11 +2027,11 @@ export default function FinanceModule() {
                         <tr>
                           <th className="p-3">Month</th>
                           <th className="p-3 text-right">Units Sold</th>
-                          <th className="p-3 text-right">Invoiced Turnover</th>
-                          <th className="p-3 text-right">Direct COGS</th>
-                          <th className="p-3 text-right">Operating OPEX</th>
+                          <th className="p-3 text-right">Total Sales</th>
+                          <th className="p-3 text-right">Material Cost</th>
+                          <th className="p-3 text-right">Expenses</th>
                           <th className="p-3 text-right">Gross Profit</th>
-                          <th className="p-3 text-right">Gross Margin %</th>
+                          <th className="p-3 text-right">Profit Margin %</th>
                           <th className="p-3 text-right">Net Profit</th>
                           <th className="p-3 text-right">Net Margin %</th>
                         </tr>

@@ -94,7 +94,7 @@ export default function CeoCommandCenter() {
       {/* 1. Header with Period Filter & Strategic Actions */}
       <PageHeader
         title="CEO Command Center"
-        subtitle="Executive strategic cockpit: real-time consolidated turnover, operating margins, manufacturing assets, cash liquidity, and risk surveillance"
+        subtitle="Business Overview: Real-time sales, profit margins, stock value, cash balance, and order updates"
       >
         <div className="flex flex-wrap items-center gap-2">
           {/* Period Selector */}
@@ -146,7 +146,7 @@ export default function CeoCommandCenter() {
           <div className="flex items-center justify-between pb-2">
             <span className="text-[11px] font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
               <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-              Consolidated Turnover
+              Total Sales
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
               YTD FY26
@@ -156,7 +156,7 @@ export default function CeoCommandCenter() {
             ₹{Number(f.turnover_ytd || 0).toLocaleString('en-IN')}
           </div>
           <div className="flex items-center justify-between text-xs text-emerald-800 font-semibold mt-2 pt-2 border-t border-emerald-100">
-            <span>Current Month (MTD):</span>
+            <span>This Month:</span>
             <span className="font-mono font-black">₹{Number(f.turnover_mtd || 0).toLocaleString('en-IN')}</span>
           </div>
         </div>
@@ -166,7 +166,7 @@ export default function CeoCommandCenter() {
           <div className="flex items-center justify-between pb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
-              Gross Profit & Margin
+              Profit & Margin
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-50 text-blue-700 border border-blue-200">
               {f.gross_margin_percent}% Margin
@@ -176,8 +176,8 @@ export default function CeoCommandCenter() {
             ₹{Number(f.gross_profit || 0).toLocaleString('en-IN')}
           </div>
           <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span>Operating Profitability:</span>
-            <span className="font-bold text-slate-800">Healthy Apparel Benchmark</span>
+            <span>Profit Status:</span>
+            <span className="font-bold text-slate-800">Good & Stable</span>
           </div>
         </div>
 
@@ -186,17 +186,17 @@ export default function CeoCommandCenter() {
           <div className="flex items-center justify-between pb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <Wallet className="w-3.5 h-3.5 text-purple-600" />
-              Net Working Capital
+              Available Funds
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-purple-50 text-purple-700 border border-purple-200">
-              Liquid
+              Active
             </span>
           </div>
           <div className="text-3xl font-black text-purple-950 tracking-tight">
             ₹{Number(f.net_working_capital || 0).toLocaleString('en-IN')}
           </div>
           <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span>Liquid Cash & Bank:</span>
+            <span>Cash & Bank Balance:</span>
             <span className="font-mono font-bold text-slate-800">₹{Number(f.liquid_cash_bank || 0).toLocaleString('en-IN')}</span>
           </div>
         </div>
@@ -206,28 +206,28 @@ export default function CeoCommandCenter() {
           <div className="flex items-center justify-between pb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <CreditCard className="w-3.5 h-3.5 text-amber-600" />
-              Receivables vs Payables
+              Customer Dues vs Supplier Bills
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200">
-              DSO: {f.dso_days} Days
+              Avg: {f.dso_days} Days
             </span>
           </div>
           <div className="flex items-baseline justify-between mt-1">
             <div>
-              <span className="text-[10px] text-slate-400 block font-bold">Customer Debtors</span>
+              <span className="text-[10px] text-slate-400 block font-bold">To Receive (Customers)</span>
               <span className="text-xl font-black text-amber-900">
                 ₹{Number(f.accounts_receivable || 0).toLocaleString('en-IN')}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-slate-400 block font-bold">Supplier Payables</span>
+              <span className="text-[10px] text-slate-400 block font-bold">To Pay (Suppliers)</span>
               <span className="text-xl font-black text-slate-700">
                 ₹{Number(f.accounts_payable || 0).toLocaleString('en-IN')}
               </span>
             </div>
           </div>
           <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
-            <span>Net Receivables Position:</span>
+            <span>Net Pending Balance:</span>
             <span className="font-mono font-bold text-emerald-700">
               +₹{Math.max(0, f.accounts_receivable - f.accounts_payable).toLocaleString('en-IN')}
             </span>
@@ -241,10 +241,10 @@ export default function CeoCommandCenter() {
           <div>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <Boxes className="w-4 h-4 text-brand" />
-              <span>Enterprise Inventory & Manufacturing Assets Pipeline</span>
+              <span>Stock & Factory Inventory Summary</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live physical valuation across finished apparel warehouses, job-work WIP processing units, and raw yarn/fabric stocks.
+              Live stock value across finished products, job work in progress, and raw fabrics.
             </p>
           </div>
 
@@ -332,10 +332,10 @@ export default function CeoCommandCenter() {
             <div>
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <span>Consolidated Monthly Turnover & Margin Trajectory</span>
+                <span>Monthly Sales & Profit History</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Month-by-month revenue, procurement cost, and gross profit margins.
+                Month-by-month sales, purchase costs, and gross profit.
               </p>
             </div>
             <span className="text-xs font-bold text-slate-400">Past 6 Months</span>
@@ -345,11 +345,11 @@ export default function CeoCommandCenter() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-black uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="p-3">Fiscal Month</th>
-                  <th className="p-3 text-right">Turnover (₹)</th>
-                  <th className="p-3 text-right">Procurement / COGS (₹)</th>
+                  <th className="p-3">Month</th>
+                  <th className="p-3 text-right">Sales (₹)</th>
+                  <th className="p-3 text-right">Purchases / Cost (₹)</th>
                   <th className="p-3 text-right">Gross Profit (₹)</th>
-                  <th className="p-3 text-center">Gross Margin</th>
+                  <th className="p-3 text-center">Profit Margin</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
@@ -389,10 +389,10 @@ export default function CeoCommandCenter() {
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <Briefcase className="w-4 h-4 text-brand" />
-              <span>Commercial Pipeline Health</span>
+              <span>Sales & Customer Summary</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              B2B retention, pipeline order book, and channel distribution.
+              Customer re-orders, pending orders, and wholesale vs retail split.
             </p>
           </div>
 
@@ -400,33 +400,33 @@ export default function CeoCommandCenter() {
             {/* Active Customers & Repeat Retention */}
             <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">Repeat Customer Retention</span>
+                <span className="font-bold text-slate-700">Repeat Customers Rate</span>
                 <span className="font-mono font-black text-emerald-800 text-sm">
                   {comm.repeat_retention_rate}%
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Across {comm.total_customers} active verified wholesale client accounts.
+                Across {comm.total_customers} active verified customer accounts.
               </p>
             </div>
 
             {/* Order Book Value */}
             <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">Active Order Book Pipeline</span>
+                <span className="font-bold text-slate-700">Pending Orders Value</span>
                 <span className="font-mono font-black text-slate-900 text-sm">
                   ₹{Number(comm.order_book_value || 0).toLocaleString('en-IN')}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                {comm.open_pipeline_orders} confirmed sales orders awaiting final dispatch.
+                {comm.open_pipeline_orders} confirmed sales orders awaiting delivery.
               </p>
             </div>
 
             {/* Channel Split (B2B vs B2C) */}
             <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">Turnover Split (B2B vs B2C)</span>
+                <span className="font-bold text-slate-700">Sales Split (B2B vs B2C)</span>
                 <span className="font-mono font-bold text-slate-900">
                   {comm.b2b_wholesale_share}% Wholesale / {comm.b2c_retail_share}% Retail
                 </span>
@@ -446,7 +446,7 @@ export default function CeoCommandCenter() {
             {/* Marketing ROAS */}
             <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">Marketing ROI Multiplier</span>
+                <span className="font-bold text-slate-700">Marketing Return (ROI)</span>
                 <span className="font-mono font-black text-purple-700 text-sm">
                   {comm.marketing_roas}x ROAS
                 </span>
