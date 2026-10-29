@@ -13,6 +13,18 @@ const invoiceItemSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    sku: {
+      type: String,
+      default: '',
+    },
+    color: {
+      type: String,
+      default: '',
+    },
+    variant_name: {
+      type: String,
+      default: '',
+    },
     hsn_code: String,
     quantity: {
       type: Number,

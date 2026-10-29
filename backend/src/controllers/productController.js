@@ -5,8 +5,11 @@ const Warehouse = require('../models/Warehouse');
 const PurchaseInvoice = require('../models/PurchaseInvoice');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const SalesInvoice = require('../models/SalesInvoice');
+const SalesOrder = require('../models/SalesOrder');
 const SalesReturn = require('../models/SalesReturn');
 const GoodsReceiptNote = require('../models/GoodsReceiptNote');
+const Customer = require('../models/Customer');
+const Supplier = require('../models/Supplier');
 
 /**
  * Helper to compute balanced, realistic size-wise and warehouse-wise inventory breakdown
@@ -577,7 +580,7 @@ exports.getProductLedger = async (req, res) => {
       : null;
 
     // 2. Fetch all real transaction documents that reference this product
-    const [purchaseInvoices, purchaseReturns, salesInvoices, salesReturns, grns] = await Promise.all([
+    const [purchaseInvoices, purchaseReturns, salesInvoices, salesReturns, grns, salesOrders] = await Promise.all([
       PurchaseInvoice.find({ is_deleted: false, 'items.product_id': product._id })
         .populate({ path: 'supplier_id', strictPopulate: false })
         .populate({ path: 'warehouse_id', strictPopulate: false }),
@@ -593,6 +596,9 @@ exports.getProductLedger = async (req, res) => {
       GoodsReceiptNote.find({ is_deleted: false, 'items.product_id': product._id })
         .populate({ path: 'supplier_id', strictPopulate: false })
         .populate({ path: 'warehouse_id', strictPopulate: false }),
+      SalesOrder.find({ is_deleted: false, 'items.product_id': product._id, status: { $nin: ['cancelled', 'rejected', 'draft'] } })
+        .populate({ path: 'customer_id', strictPopulate: false })
+        .populate({ path: 'warehouse_id', strictPopulate: false }),
     ]);
 
     // Track which GRNs are already billed via purchase invoices to prevent double counting
@@ -604,51 +610,74 @@ exports.getProductLedger = async (req, res) => {
       if (pi.grn_id) billedGrnIds.add(pi.grn_id.toString());
     });
 
-    // 3. Determine base opening stock per warehouse (overall vs specific color)
-    const totalBaseStock = selectedColor
-      ? Number(matchingVariant?.stock || Math.round(Number(product.current_stock || 100) / Math.max(1, colorVariantsList.length)))
-      : Number(product.current_stock || 100);
+    // Track which Sales Orders are already invoiced to prevent double counting
+    const invoicedSoIds = new Set();
+    salesInvoices.forEach((si) => {
+      if (si.so_id) invoicedSoIds.add(si.so_id.toString());
+    });
 
-    const warehouseOpeningMap = {};
-    warehouses.forEach((w, idx) => {
-      let whOpen = 0;
-      if (warehouses.length <= 1) {
-        whOpen = totalBaseStock;
-      } else if (idx === 0) {
-        whOpen = Math.round(totalBaseStock * 0.6);
-      } else if (idx === 1) {
-        whOpen = Math.round(totalBaseStock * 0.3);
-      } else {
-        const remaining = totalBaseStock - Math.round(totalBaseStock * 0.6) - Math.round(totalBaseStock * 0.3);
-        whOpen = Math.max(0, Math.floor(remaining / Math.max(1, warehouses.length - 2)));
+    // Helper to intelligently detect item color from color, variant_name, SKU, or product_name
+    const extractItemColor = (it) => {
+      if (it.color && typeof it.color === 'string' && it.color.trim()) {
+        return it.color.trim();
       }
-      warehouseOpeningMap[w._id.toString()] = whOpen;
-    });
+      if (it.variant_name && typeof it.variant_name === 'string' && it.variant_name.trim()) {
+        return it.variant_name.trim();
+      }
 
-    // 4. Build all raw movement entries
-    const allRawMovements = [];
+      const prodName = String(it.product_name || '').trim();
+      const sku = String(it.sku || '').trim().toLowerCase();
 
-    // Initial Opening Stock entries (dated at product creation)
-    const productCreatedDate = product.createdAt || new Date(Date.now() - 30 * 86400000);
-    warehouses.forEach((w) => {
-      allRawMovements.push({
-        id: `OPEN-${w._id}`,
-        date: productCreatedDate,
-        transaction_type: 'Opening Stock',
-        type_key: 'opening',
-        reference_number: `OPN-${w.warehouse_code}`,
-        party_name: 'Initial Stock Audit',
-        party_type: 'System',
-        warehouse_id: w._id,
-        warehouse_name: w.warehouse_name,
-        warehouse_code: w.warehouse_code,
-        color: selectedColor || (colorVariantsList[0]?.color || 'Standard'),
-        in_qty: warehouseOpeningMap[w._id.toString()] || 0,
-        out_qty: 0,
-        rate: Number(product.purchase_rate || product.price || 0),
-        remarks: `Opening inventory balance for ${w.warehouse_name}${selectedColor ? ` (${selectedColor})` : ''}`,
-      });
-    });
+      // Check variant match by SKU
+      if (sku) {
+        for (const v of colorVariantsList) {
+          if (v.sku && (sku === v.sku.toLowerCase() || sku.includes(v.sku.toLowerCase()) || v.sku.toLowerCase().includes(sku))) {
+            return v.color;
+          }
+        }
+      }
+
+      // Check variant match in product_name
+      for (const v of colorVariantsList) {
+        if (!v.color) continue;
+        const vColorClean = v.color.trim().toLowerCase();
+        const regex = new RegExp(`(^|\\s|-|/|,)${vColorClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|\\s|-|/|,)`, 'i');
+        if (regex.test(prodName)) {
+          return v.color;
+        }
+      }
+
+      // If product_name contains '-' e.g. "TITAN POLO NECK - Navy Blue"
+      if (prodName.includes('-')) {
+        const parts = prodName.split('-');
+        const candidate = parts[parts.length - 1].trim();
+        if (candidate) {
+          const match = colorVariantsList.find((v) => v.color && v.color.toLowerCase() === candidate.toLowerCase());
+          if (match) return match.color;
+          const partial = colorVariantsList.find((v) => v.color && (v.color.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(v.color.toLowerCase())));
+          if (partial) return partial.color;
+          return candidate;
+        }
+      }
+
+      // If only one color variant exists on product
+      if (colorVariantsList.length === 1 && colorVariantsList[0]?.color) {
+        return colorVariantsList[0].color;
+      }
+
+      return '';
+    };
+
+    const matchesColorFilter = (itColor) => {
+      if (!selectedColor) return true;
+      if (!itColor) return false;
+      const itLower = itColor.toLowerCase();
+      const selLower = selectedColor.toLowerCase();
+      return itLower === selLower || itLower.includes(selLower) || selLower.includes(itLower);
+    };
+
+    // 3. Build all real transaction movement entries
+    const transactionMovements = [];
 
     // Purchase Invoices (Inward Stock: +)
     purchaseInvoices.forEach((pi) => {
@@ -658,14 +687,12 @@ exports.getProductLedger = async (req, res) => {
       );
 
       matchingItems.forEach((it, idx) => {
-        const itColor = it.color || it.variant_name || (colorVariantsList[0]?.color || '');
-        if (selectedColor && itColor && !itColor.toLowerCase().includes(selectedColor.toLowerCase()) && !selectedColor.toLowerCase().includes(itColor.toLowerCase())) {
-          return;
-        }
+        const itColor = extractItemColor(it);
+        if (!matchesColorFilter(itColor)) return;
 
         const qty = Number(it.quantity !== undefined ? it.quantity : it.received_qty || 0);
         if (qty > 0) {
-          allRawMovements.push({
+          transactionMovements.push({
             id: `PB-${pi._id}-${idx}`,
             date: pi.bill_date || pi.createdAt,
             transaction_type: 'Purchase',
@@ -676,7 +703,7 @@ exports.getProductLedger = async (req, res) => {
             warehouse_id: wh._id,
             warehouse_name: wh.warehouse_name,
             warehouse_code: wh.warehouse_code,
-            color: itColor,
+            color: itColor || (selectedColor || 'Standard'),
             in_qty: qty,
             out_qty: 0,
             rate: Number(it.unit_rate || it.rate || 0),
@@ -695,14 +722,12 @@ exports.getProductLedger = async (req, res) => {
       );
 
       matchingItems.forEach((it, idx) => {
-        const itColor = it.color || it.variant_name || (colorVariantsList[0]?.color || '');
-        if (selectedColor && itColor && !itColor.toLowerCase().includes(selectedColor.toLowerCase()) && !selectedColor.toLowerCase().includes(itColor.toLowerCase())) {
-          return;
-        }
+        const itColor = extractItemColor(it);
+        if (!matchesColorFilter(itColor)) return;
 
         const qty = Number(it.accepted_qty || it.received_qty || 0);
         if (qty > 0) {
-          allRawMovements.push({
+          transactionMovements.push({
             id: `GRN-${grn._id}-${idx}`,
             date: grn.grn_date || grn.createdAt,
             transaction_type: 'Purchase',
@@ -713,7 +738,7 @@ exports.getProductLedger = async (req, res) => {
             warehouse_id: wh._id,
             warehouse_name: wh.warehouse_name,
             warehouse_code: wh.warehouse_code,
-            color: itColor,
+            color: itColor || (selectedColor || 'Standard'),
             in_qty: qty,
             out_qty: 0,
             rate: Number(it.unit_rate || 0),
@@ -731,14 +756,12 @@ exports.getProductLedger = async (req, res) => {
       );
 
       matchingItems.forEach((it, idx) => {
-        const itColor = it.color || it.variant_name || (colorVariantsList[0]?.color || '');
-        if (selectedColor && itColor && !itColor.toLowerCase().includes(selectedColor.toLowerCase()) && !selectedColor.toLowerCase().includes(itColor.toLowerCase())) {
-          return;
-        }
+        const itColor = extractItemColor(it);
+        if (!matchesColorFilter(itColor)) return;
 
         const qty = Number(it.quantity || 0);
         if (qty > 0) {
-          allRawMovements.push({
+          transactionMovements.push({
             id: `PR-${pr._id}-${idx}`,
             date: pr.return_date || pr.createdAt,
             transaction_type: 'Purchase Return',
@@ -749,7 +772,7 @@ exports.getProductLedger = async (req, res) => {
             warehouse_id: wh._id,
             warehouse_name: wh.warehouse_name,
             warehouse_code: wh.warehouse_code,
-            color: itColor,
+            color: itColor || (selectedColor || 'Standard'),
             in_qty: 0,
             out_qty: qty,
             rate: Number(it.unit_price || 0),
@@ -767,14 +790,12 @@ exports.getProductLedger = async (req, res) => {
       );
 
       matchingItems.forEach((it, idx) => {
-        const itColor = it.color || it.variant_name || (colorVariantsList[0]?.color || '');
-        if (selectedColor && itColor && !itColor.toLowerCase().includes(selectedColor.toLowerCase()) && !selectedColor.toLowerCase().includes(itColor.toLowerCase())) {
-          return;
-        }
+        const itColor = extractItemColor(it);
+        if (!matchesColorFilter(itColor)) return;
 
         const qty = Number(it.quantity || 0);
         if (qty > 0) {
-          allRawMovements.push({
+          transactionMovements.push({
             id: `SI-${si._id}-${idx}`,
             date: si.invoice_date || si.createdAt,
             transaction_type: 'Sales',
@@ -785,11 +806,48 @@ exports.getProductLedger = async (req, res) => {
             warehouse_id: wh._id,
             warehouse_name: wh.warehouse_name,
             warehouse_code: wh.warehouse_code,
-            color: itColor,
+            color: itColor || (selectedColor || 'Standard'),
             in_qty: 0,
             out_qty: qty,
             rate: Number(it.unit_price || 0),
             remarks: si.notes || `Outward dispatch for Customer Sales Invoice${itColor ? ` - Color: ${itColor}` : ''}`,
+          });
+        }
+      });
+    });
+
+    // Uninvoiced Sales Orders (Outward Stock: -)
+    salesOrders.forEach((so) => {
+      // If order is already converted to an invoice, skip to prevent double counting
+      if (invoicedSoIds.has(so._id.toString())) return;
+
+      const wh = so.warehouse_id || defaultWarehouse;
+      const matchingItems = (so.items || []).filter(
+        (it) => it.product_id && it.product_id.toString() === product._id.toString()
+      );
+
+      matchingItems.forEach((it, idx) => {
+        const itColor = extractItemColor(it);
+        if (!matchesColorFilter(itColor)) return;
+
+        const qty = Number(it.quantity || 0);
+        if (qty > 0) {
+          transactionMovements.push({
+            id: `SO-${so._id}-${idx}`,
+            date: so.order_date || so.createdAt,
+            transaction_type: 'Sales Order',
+            type_key: 'sales_order',
+            reference_number: so.so_number || `SO-${so._id.toString().slice(-4)}`,
+            party_name: so.customer_id?.company_name || so.customer_id?.customer_name || 'Customer',
+            party_type: 'Customer',
+            warehouse_id: wh._id,
+            warehouse_name: wh.warehouse_name,
+            warehouse_code: wh.warehouse_code,
+            color: itColor || (selectedColor || 'Standard'),
+            in_qty: 0,
+            out_qty: qty,
+            rate: Number(it.unit_price || 0),
+            remarks: so.notes || `Pending outward dispatch for Sales Order${itColor ? ` - Color: ${itColor}` : ''}`,
           });
         }
       });
@@ -803,14 +861,12 @@ exports.getProductLedger = async (req, res) => {
       );
 
       matchingItems.forEach((it, idx) => {
-        const itColor = it.color || it.variant_name || (colorVariantsList[0]?.color || '');
-        if (selectedColor && itColor && !itColor.toLowerCase().includes(selectedColor.toLowerCase()) && !selectedColor.toLowerCase().includes(itColor.toLowerCase())) {
-          return;
-        }
+        const itColor = extractItemColor(it);
+        if (!matchesColorFilter(itColor)) return;
 
         const qty = Number(it.quantity || 0);
         if (qty > 0) {
-          allRawMovements.push({
+          transactionMovements.push({
             id: `SR-${sr._id}-${idx}`,
             date: sr.return_date || sr.createdAt,
             transaction_type: 'Sales Return',
@@ -821,7 +877,7 @@ exports.getProductLedger = async (req, res) => {
             warehouse_id: wh._id,
             warehouse_name: wh.warehouse_name,
             warehouse_code: wh.warehouse_code,
-            color: itColor,
+            color: itColor || (selectedColor || 'Standard'),
             in_qty: qty,
             out_qty: 0,
             rate: Number(it.unit_price || 0),
@@ -830,6 +886,78 @@ exports.getProductLedger = async (req, res) => {
         }
       });
     });
+
+    // 4. Calculate opening stock per warehouse accurately
+    // Total target current stock:
+    const targetCurrentStock = selectedColor
+      ? Number(matchingVariant?.stock !== undefined ? matchingVariant.stock : Math.round(Number(product.current_stock || 0) / Math.max(1, colorVariantsList.length)))
+      : Number(product.current_stock || 0);
+
+    const warehouseMovementTotals = {};
+    warehouses.forEach((w) => {
+      warehouseMovementTotals[w._id.toString()] = { totalIn: 0, totalOut: 0 };
+    });
+
+    transactionMovements.forEach((m) => {
+      const wid = m.warehouse_id?.toString();
+      if (warehouseMovementTotals[wid]) {
+        warehouseMovementTotals[wid].totalIn += Number(m.in_qty || 0);
+        warehouseMovementTotals[wid].totalOut += Number(m.out_qty || 0);
+      }
+    });
+
+    const warehouseOpeningMap = {};
+    warehouses.forEach((w, idx) => {
+      let whTarget = 0;
+      if (warehouses.length <= 1) {
+        whTarget = targetCurrentStock;
+      } else if (idx === 0) {
+        whTarget = Math.round(targetCurrentStock * 0.6);
+      } else if (idx === 1) {
+        whTarget = Math.round(targetCurrentStock * 0.3);
+      } else {
+        const remaining = targetCurrentStock - Math.round(targetCurrentStock * 0.6) - Math.round(targetCurrentStock * 0.3);
+        whTarget = Math.max(0, Math.floor(remaining / Math.max(1, warehouses.length - 2)));
+      }
+
+      const wid = w._id.toString();
+      const inQty = warehouseMovementTotals[wid]?.totalIn || 0;
+      const outQty = warehouseMovementTotals[wid]?.totalOut || 0;
+      // Opening Stock = Target Current Stock + Total Out - Total In
+      const calculatedOpening = Math.max(0, whTarget + outQty - inQty);
+      warehouseOpeningMap[wid] = calculatedOpening;
+    });
+
+    const allRawMovements = [];
+    // Opening entries should precede all transactions chronologically
+    let earliestTxTime = product.createdAt ? new Date(product.createdAt).getTime() : (Date.now() - 30 * 86400000);
+    transactionMovements.forEach((m) => {
+      const t = new Date(m.date).getTime();
+      if (!isNaN(t) && t < earliestTxTime) earliestTxTime = t;
+    });
+    const openingStockDate = new Date(earliestTxTime - 1000);
+
+    warehouses.forEach((w) => {
+      allRawMovements.push({
+        id: `OPEN-${w._id}`,
+        date: openingStockDate,
+        transaction_type: 'Opening Stock',
+        type_key: 'opening',
+        reference_number: `OPN-${w.warehouse_code}`,
+        party_name: 'Initial Stock Audit',
+        party_type: 'System',
+        warehouse_id: w._id,
+        warehouse_name: w.warehouse_name,
+        warehouse_code: w.warehouse_code,
+        color: selectedColor || (colorVariantsList[0]?.color || 'Standard'),
+        in_qty: warehouseOpeningMap[w._id.toString()] || 0,
+        out_qty: 0,
+        rate: Number(product.purchase_rate || product.price || 0),
+        remarks: `Opening inventory balance for ${w.warehouse_name}${selectedColor ? ` (${selectedColor})` : ''}`,
+      });
+    });
+
+    allRawMovements.push(...transactionMovements);
 
     // 5. Calculate closing stocks and movements per warehouse
     const warehouseStockSummary = {};

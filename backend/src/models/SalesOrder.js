@@ -18,6 +18,14 @@ const orderItemSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    color: {
+      type: String,
+      default: '',
+    },
+    variant_name: {
+      type: String,
+      default: '',
+    },
     hsn_code: {
       type: String,
       default: '',

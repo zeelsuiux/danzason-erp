@@ -498,6 +498,8 @@ exports.createSalesOrder = async (req, res) => {
         product_id: prod._id,
         product_name: variant ? `${prod.title || prod.product_name} - ${variant.color || variant.variant_name || ''}`.trim() : (prod.title || prod.product_name),
         sku: variant?.sku || prod.sku || '',
+        color: variant?.color || it.color || '',
+        variant_name: variant?.variant_name || variant?.color || '',
         quantity: qty,
         uom: prod.uom || it.uom || 'PCS',
         unit_price: rate,
@@ -854,11 +856,16 @@ exports.createSalesInvoiceFromOrder = async (req, res) => {
     ).trim().toLowerCase();
     const isIntraState = originState === destState;
 
+    const validSoWhId = so.warehouse_id?._id || (mongoose.Types.ObjectId.isValid(so.warehouse_id) ? so.warehouse_id : null);
+
     const invoiceItems = so.items.map((it) => {
       const halfTax = Number(((it.gst_amount || 0) / 2).toFixed(2));
       return {
         product_id: it.product_id,
         product_name: it.product_name,
+        sku: it.sku || '',
+        color: it.color || '',
+        variant_name: it.variant_name || '',
         hsn_code: it.hsn_code || '6109',
         quantity: it.quantity,
         uom: it.uom,
@@ -879,6 +886,7 @@ exports.createSalesInvoiceFromOrder = async (req, res) => {
     const invoice = new SalesInvoice({
       so_id: so._id,
       customer_id: so.customer_id._id,
+      warehouse_id: validSoWhId,
       invoice_date: new Date(),
       due_date: dueDateCalculated,
       approx_repeat_date: approx_repeat_date ? new Date(approx_repeat_date) : null,
@@ -1098,6 +1106,9 @@ exports.createDirectSalesInvoice = async (req, res) => {
       processedItems.push({
         product_id: prod._id,
         product_name: variant ? `${prod.title || prod.product_name} - ${variant.color || ''}`.trim() : (prod.title || prod.product_name),
+        sku: variant?.sku || prod.sku || '',
+        color: variant?.color || it.color || '',
+        variant_name: variant?.variant_name || variant?.color || '',
         hsn_code: prod.hsn_code || it.hsn_code || '6109',
         quantity: qty,
         uom: prod.uom || it.uom || 'PCS',
