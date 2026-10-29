@@ -83,7 +83,6 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
       items: [
         { name: 'Product Inventory', path: '/products', icon: Boxes },
         { name: 'Raw Materials', path: '/raw-materials', icon: Layers },
-        { name: 'Stock Ledger', path: '/raw-materials/stock-ledger', icon: FileSpreadsheet },
       ],
     },
     {
@@ -213,19 +212,15 @@ export default function Sidebar({ isOpen, onClose, onOpenQuickPeek }) {
     if (itemPath === '/products') {
       return (
         (currentPath.startsWith('/products') || currentPath.startsWith('/sales/products')) &&
-        !currentPath.includes('stock-ledger')
+        !currentPath.startsWith('/raw-materials')
       );
     }
     if (itemPath === '/raw-materials') {
       return (
         currentPath.startsWith('/raw-materials') &&
-        !currentPath.includes('stock-ledger') &&
         !currentPath.includes('/orders') &&
         !currentPath.includes('/bills')
       );
-    }
-    if (itemPath === '/raw-materials/stock-ledger') {
-      return currentPath.includes('stock-ledger') || currentPath.includes('/ledger');
     }
     if (itemPath === '/finance') {
       return currentPath.startsWith('/finance') && !currentPath.includes('capital') && !currentPath.includes('drawings');
